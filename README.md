@@ -9,7 +9,7 @@
 * **Stat Integration**: Отслеживание возбуждения, доверия и смущения.
 
 ## Установка
-1. Склонируйте репозиторий в `SillyTavern/public/extensions/lima-interactive`.
+1. Склонируйте репозиторий в `SillyTavern/public/extensions/ST-Interact-Chat`.
 2. Запустите ST.
 3. Включите расширение в меню расширений.
 
