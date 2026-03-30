@@ -1,13 +1,11 @@
 {
-    "name": "st-interact-chat",
+    "name": "ST-Interact-Chat",
     "display_name": "ST Interactive Chat",
-    "version": "1.0.0",
-    "description": "Интерактивные зоны прикосновений для режима Визуальной Новеллы.",
-    "author": "stitchmod",
+    "version": "1.0.1",
+    "description": "Interactive touch zones with dynamic actions for SillyTavern",
+    "author": "stitchmod & Grok",
     "entrypoint": "index.js",
-    "js": ["index.js"],
+    "js": ["script.js"],
     "css": ["style.css"],
-    "settings": {
-        "active": true
-    }
+    "settings": "settings.html"
 }
