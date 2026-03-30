@@ -1,39 +1,50 @@
 ﻿import { preloadPhrases, getBestAction } from './actionsSelector.js';
 import actionlibrary from './actionlibrary.js';
 
-// Импортируем модули ST (доступны глобально в контексте расширений)
+// Глобальные переменные SillyTavern доступны через импорты из ядра
 import { 
     getChat, 
-    sendMessage, 
-    registerSlashCommand,
-    onEvent,
-    eventSource
+    sendMessage,
+    eventSource,
+    event_types
 } from '../../../../script.js';
 
+// Ждем загрузки jQuery (стандарт для расширений ST)
 jQuery(async () => {
-    // 1. Инициализируем эмбеддинги при старте
-    await preloadPhrases(actionlibrary);
+    console.log("⏳ [ST Interactive] Initializing...");
 
-    // 2. Функция обработки клика по зоне (будет вызываться из script.js)
+    // 1. Предзагружаем эмбеддинги для фраз
+    try {
+        await preloadPhrases(actionlibrary);
+        console.log("✅ [ST Interactive] Library loaded");
+    } catch (e) {
+        console.error("❌ [ST Interactive] Library failed:", e);
+    }
+
+    // 2. Функция, которую вызовет script.js при клике по зоне
     window.handleZoneClick = async (zoneName) => {
         const chat = getChat();
-        // Берем последние 2 сообщения для контекста
+        
+        // Берем последние 2 сообщения для контекста (из массива чата ST)
         const context = chat.slice(-2).map(m => m.mes).join(" ");
         
-        // Получаем лучшую фразу
+        // Получаем лучшую фразу через transformers.js
         const actionText = await getBestAction(zoneName, context);
         
-        // Форматируем [левого/правого] если есть
-        const finalAction = actionText.replace(/\[([^\]]+)\/([^\]]+)\]/g, () => 
-            Math.random() > 0.5 ? arguments[1] : arguments[2]
-        );
+        // Обрабатываем случайный выбор [левого/правого]
+        const finalAction = actionText.replace(/\[([^\]]+)\/([^\]]+)\]/g, (match, p1, p2) => {
+            return Math.random() > 0.5 ? p1 : p2;
+        });
 
-        // Отправляем в чат SillyTavern
+        // Вставляем в поле ввода и фокусим его
         const inputField = document.getElementById('send_textarea');
-        inputField.value = finalAction;
-        // Эмулируем нажатие Enter или вызываем sendMessage
-        // sendMessage(); 
+        if (inputField) {
+            inputField.value = finalAction;
+            inputField.focus();
+            // Вызываем событие изменения, чтобы ST "увидел" текст
+            inputField.dispatchEvent(new Event('input', { bubbles: true }));
+        }
     };
 
-    console.log("🚀 ST Interactive Chat Extension Loaded");
+    console.log("🚀 [ST Interactive] Extension Ready");
 });

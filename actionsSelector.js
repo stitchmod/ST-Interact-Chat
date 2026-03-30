@@ -1,18 +1,16 @@
-﻿import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1';
+﻿// Используем CDN версию, так как в расширении нет node_modules
+import { pipeline } from 'https://cdn.jsdelivr.net/npm/@xenova/transformers@2.17.1';
 
 let extractor = null;
-let phraseEmbeddings = {};
+let phraseEmbeddings = {}; 
 
-// Инициализация модели (вызываем один раз при включении расширения)
-export async function initEmbedder(modelName = 'Xenova/all-MiniLM-L6-v2') {
+async function initEmbedder() {
     if (!extractor) {
-        console.log("⏳ [ST Interactive] Loading embeddings model...");
-        extractor = await pipeline('feature-extraction', modelName);
-        console.log("✅ [ST Interactive] Model loaded");
+        console.log("⏳ [ST Interactive] Loading AI Model...");
+        extractor = await pipeline('feature-extraction', 'Xenova/all-MiniLM-L6-v2');
     }
 }
 
-// Генерация векторов для библиотеки действий
 export async function preloadPhrases(library) {
     await initEmbedder();
     phraseEmbeddings = {};
@@ -25,12 +23,12 @@ export async function preloadPhrases(library) {
             phraseEmbeddings[zone].push({ phrase, embedding });
         }
     }
-    console.log(`✅ [ST Interactive] Preloaded ${Object.keys(library).length} zones`);
 }
 
-// Поиск лучшей фразы на основе контекста
 export async function getBestAction(zoneName, contextText) {
-    if (!phraseEmbeddings[zoneName]) return `*Я касаюсь её ${zoneName}*`;
+    await initEmbedder();
+
+    if (!phraseEmbeddings[zoneName]) return `*Я коснулся её ${zoneName}*`;
 
     const queryOutput = await extractor(contextText, { pooling: 'mean', normalize: true });
     const queryEmb = Array.from(queryOutput.data);
@@ -45,7 +43,7 @@ export async function getBestAction(zoneName, contextText) {
             bestPhrase = item.phrase;
         }
     }
-    return bestPhrase;
+    return bestPhrase || `*Я коснулся её ${zoneName}*`;
 }
 
 function cosineSimilarity(a, b) {
