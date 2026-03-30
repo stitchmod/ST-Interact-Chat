@@ -3,9 +3,12 @@
     "version": "1.0.1",
     "description": "Интерактивные зоны прикосновений и динамические действия для VN Mode",
     "author": "stitchmod",
+    "homePage": "https://github.com/stitchmod/ST-Interact-Chat",
     "js": "index.js",
     "css": "style.css",
     "settings": "settings.html",
-    "loading_order": 50,
+    "loading_order": 60,
+    "requires": [],
+    "optional": [],
     "auto_update": false
 }
