@@ -1,0 +1,31 @@
+﻿<div class="st-interact-settings">
+    <h4>Настройки интерактивной куклы</h4>
+    
+    <div class="inline-icons">
+        <label>Включить оверлей</label>
+        <input type="checkbox" id="st-interact-active">
+    </div>
+
+    <hr>
+
+    <div class="margin-top-10">
+        <label title="Основное изображение персонажа (база без одежды)">Путь к базе (base.png):</label>
+        <input type="text" id="st-interact-base-path" class="text_box" placeholder="assets/base.png">
+    </div>
+
+    <div class="margin-top-10">
+        <label title="Цветная карта зон для кликов">Путь к карте зон (map.png):</label>
+        <input type="text" id="st-interact-map-path" class="text_box" placeholder="assets/map.png">
+    </div>
+
+    <hr>
+
+    <h5>Гардероб (Слои одежды)</h5>
+    <p class="note">Укажите пути к PNG через запятую или по одному</p>
+    
+    <div id="st-interact-wardrobe-list">
+        <textarea id="st-interact-wardrobe-cfg" class="text_box" placeholder="bra:assets/bra.png, shirt:assets/shirt.png" rows="3"></textarea>
+    </div>
+
+    <p class="note">Формат: название:путь, название:путь</p>
+</div>
