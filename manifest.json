@@ -1,0 +1,14 @@
+﻿{
+    "name": "lima-interactive",
+    "display_name": "Lima Interactive",
+    "version": "1.0.0",
+    "description": "Interactive touch zones and wardrobe system for Lima.",
+    "author": "YourName",
+    "entrypoint": "index.js",
+    "js": ["script.js"],
+    "css": ["style.css"],
+    "settings": {
+        "show_panel": true,
+        "embedding_model": "Xenova/all-MiniLM-L6-v2"
+    }
+}
