@@ -1,11 +1,11 @@
 {
-    "name": "ST-Interact-Chat",
     "display_name": "ST Interactive Chat",
     "version": "1.0.1",
-    "description": "Интерактивные зоны прикосновений для SillyTavern (VN Mode)",
+    "description": "Интерактивные зоны прикосновений и динамические действия для VN Mode",
     "author": "stitchmod",
-    "entrypoint": "index.js",
-    "js": ["script.js"],
-    "css": ["style.css"],
-    "settings": "settings.html"
+    "js": "index.js",
+    "css": "style.css",
+    "settings": "settings.html",
+    "loading_order": 50,
+    "auto_update": false
 }
