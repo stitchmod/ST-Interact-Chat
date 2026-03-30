@@ -1,7 +1,8 @@
-﻿import { preloadPhrases, getBestAction } from './actionsSelector.js';
+import { preloadPhrases, getBestAction } from './actionsSelector.js';
 import actionlibrary from './actionlibrary.js';
+// Добавляем импорт скрипта отрисовки
+import './script.js'; 
 
-// Получаем контекст SillyTavern
 const { getChat } = SillyTavern.getContext();
 
 jQuery(async () => {
