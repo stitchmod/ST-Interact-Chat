@@ -1,14 +1,13 @@
-﻿{
-    "name": "lima-interactive",
-    "display_name": "Lima Interactive",
+{
+    "name": "st-interact-chat",
+    "display_name": "ST Interactive Chat",
     "version": "1.0.0",
-    "description": "Interactive touch zones and wardrobe system for Lima.",
-    "author": "YourName",
+    "description": "Интерактивные зоны прикосновений для режима Визуальной Новеллы.",
+    "author": "stitchmod",
     "entrypoint": "index.js",
-    "js": ["script.js"],
+    "js": ["script.js", "actionsSelector.js"],
     "css": ["style.css"],
     "settings": {
-        "show_panel": true,
-        "embedding_model": "Xenova/all-MiniLM-L6-v2"
+        "active": true
     }
 }
