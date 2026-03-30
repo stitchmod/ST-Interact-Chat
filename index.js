@@ -1,34 +1,40 @@
-import { preloadPhrases, getBestAction } from './actionsSelector.js';
-import actionlibrary from './actionlibrary.js';
-// Добавляем импорт скрипта отрисовки
-import './script.js'; 
+﻿import actionlibrary from './actionlibrary.js';
+// Добавляем импорт скрипта отрисовки карты (оставляем как было)
+import './script.js';
 
 const { getChat } = SillyTavern.getContext();
 
 jQuery(async () => {
-    console.log("⏳ [ST Interactive] Initializing...");
+    console.log("[ST Interactive] Инициализация... (без тяжёлой модели)");
 
-    try {
-        await preloadPhrases(actionlibrary);
-        console.log("✅ [ST Interactive] Library loaded");
-    } catch (e) {
-        console.error("❌ [ST Interactive] Initialization failed:", e);
-    }
+    // Никакой предзагрузки моделей — всё мгновенно
 
     window.handleZoneClick = async (zoneName) => {
-        const chat = getChat();
-        const context = chat.slice(-3).map(m => m.mes).join(" ");
-        const actionText = await getBestAction(zoneName, context);
+        const library = actionlibrary[zoneName];
         
-        const finalAction = actionText.replace(/\[([^\]]+)\/([^\]]+)\]/g, (match, p1, p2) => {
+        if (!library || library.length === 0) {
+            console.warn(`[ST Interactive] Нет фраз для зоны: ${zoneName}`);
+            return;
+        }
+
+        // Просто выбираем случайную фразу из библиотеки — быстро и надёжно
+        const randomPhrase = library[Math.floor(Math.random() * library.length)];
+
+        // Обрабатываем [левое/правое] как было раньше
+        const finalAction = randomPhrase.replace(/\[([^\]]+)\/([^\]]+)\]/g, (match, p1, p2) => {
             return Math.random() > 0.5 ? p1 : p2;
         });
 
+        // Вставляем в поле ввода
         const inputField = document.getElementById('send_textarea');
         if (inputField) {
             inputField.value = finalAction;
             inputField.focus();
             inputField.dispatchEvent(new Event('input', { bubbles: true }));
+            
+            console.log(`[ST Interactive] Выбрана фраза для ${zoneName}:`, finalAction);
         }
     };
+
+    console.log("[ST Interactive] Готово! Карта касаний и выбор фраз работают без тормозов.");
 });
