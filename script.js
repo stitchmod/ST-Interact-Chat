@@ -22,27 +22,27 @@
     }
 
     init() {
-        // ПУТЬ ДОЛЖЕН БЫТЬ ТОЧНЫМ (с учетом регистра букв на Linux)
-        this.mapImage.src = 'scripts/extensions/third-party/ST-Interact-Chat/assets/map.png';
+        // Определяем путь к текущему скрипту, чтобы найти assets относительно него
+        const scriptPath = import.meta.url;
+        const extensionDir = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
+        this.mapImage.src = `${extensionDir}/assets/map.png`;
         
         this.mapImage.onload = () => {
             this.canvas.width = this.mapImage.naturalWidth;
             this.canvas.height = this.mapImage.naturalHeight;
             this.ctx.drawImage(this.mapImage, 0, 0);
             this.isReady = true;
-            console.log("✅ [ST Interactive] Map loaded");
+            console.log("✅ [ST Interactive] Map image loaded from: " + this.mapImage.src);
         };
 
         this.mapImage.onerror = () => {
-            console.error("❌ [ST Interactive] Image 404 at: " + this.mapImage.src);
+            console.error("❌ [ST Interactive] 404: Map not found at " + this.mapImage.src);
         };
 
-        // Проверяем наличие VN Mode каждую секунду
         setInterval(() => this.tryInject(), 1000);
     }
 
     tryInject() {
-        // Контейнер персонажа в VN режиме SillyTavern
         const vnContainer = document.querySelector('.expression_holder');
         if (!vnContainer || document.getElementById('st-interactive-overlay')) return;
 
@@ -66,7 +66,7 @@
         });
 
         vnContainer.appendChild(overlay);
-        console.log("✅ [ST Interactive] Overlay Injected");
+        console.log("✅ [ST Interactive] Overlay ready in VN Mode");
     }
 }
 

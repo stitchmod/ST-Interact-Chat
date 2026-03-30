@@ -1,10 +1,8 @@
 ﻿import { preloadPhrases, getBestAction } from './actionsSelector.js';
 import actionlibrary from './actionlibrary.js';
 
-// Используем глобальный контекст SillyTavern
-const { 
-    getChat, 
-} = SillyTavern.getContext();
+// Получаем контекст SillyTavern
+const { getChat } = SillyTavern.getContext();
 
 jQuery(async () => {
     console.log("⏳ [ST Interactive] Initializing...");
@@ -13,17 +11,14 @@ jQuery(async () => {
         await preloadPhrases(actionlibrary);
         console.log("✅ [ST Interactive] Library loaded");
     } catch (e) {
-        console.error("❌ [ST Interactive] Model/Library error:", e);
+        console.error("❌ [ST Interactive] Initialization failed:", e);
     }
 
-    // Глобальная функция, которую вызывает script.js
     window.handleZoneClick = async (zoneName) => {
         const chat = getChat();
         const context = chat.slice(-3).map(m => m.mes).join(" ");
-        
         const actionText = await getBestAction(zoneName, context);
         
-        // Обработка [левого/правого]
         const finalAction = actionText.replace(/\[([^\]]+)\/([^\]]+)\]/g, (match, p1, p2) => {
             return Math.random() > 0.5 ? p1 : p2;
         });
