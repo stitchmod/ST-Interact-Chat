@@ -33,7 +33,7 @@ class InteractiveMapManager {
         this.clothing = [
             { name: 'panties', file: 'panties.png', zIndex: 1,  img: new Image(), visible: true },
             { name: 'bra',     file: 'bra.png',     zIndex: 2,  img: new Image(), visible: true },
-            { name: 'short',   file: 'short.png',   zIndex: 3,  img: new Image(), visible: true },
+            { name: 'short',   file: 'shorts.png',  zIndex: 3,  img: new Image(), visible: true },
             { name: 'shirt',   file: 'shirt.png',   zIndex: 10, img: new Image(), visible: true },
         ];
 
@@ -85,6 +85,10 @@ class InteractiveMapManager {
 
         // Read scale preference (0.1 to 1.0, default 0.45 = 45% of usable height)
         this.scale = Math.min(1, Math.max(0.1, Number(settings.scale) || 0.45));
+
+        // Position offsets: posX = % from left (0-100), posY = % from bottom (0-100)
+        this.posX = Math.min(100, Math.max(0, Number(settings.posX ?? 0)));
+        this.posY = Math.min(100, Math.max(0, Number(settings.posY ?? 0)));
 
         try {
             // Load base image and zone map in parallel
@@ -216,14 +220,17 @@ class InteractiveMapManager {
         const charW = Math.round(charH * (this.CANVAS_W / this.CANVAS_H));
 
         // ── Outer puppet shell ─────────────────────────────────────────────
-        // Fixed to bottom-left above the send bar; pointer-events disabled
-        // so the shell itself never blocks clicks outside the character.
+        // posX (0-100) = % offset from left across available width
+        // posY (0-100) = % offset upward from bottom of send form
+        const leftPx   = Math.round((window.innerWidth - charW) * (this.posX / 100));
+        const bottomPx = bottomH + Math.round((availH - charH) * (this.posY / 100));
+
         const puppet = document.createElement('div');
         puppet.id = 'st-interactive-puppet';
         puppet.style.cssText = [
             'position:fixed',
-            `bottom:${bottomH}px`,
-            'left:0',
+            `bottom:${bottomPx}px`,
+            `left:${leftPx}px`,
             'z-index:50',
             'pointer-events:none',
             'display:flex',
@@ -249,7 +256,8 @@ class InteractiveMapManager {
             'image-rendering:pixelated',
         ].join(';');
 
-        // Transparent overlay covering ONLY the canvas — the real click target
+        // Transparent overlay covering ONLY the canvas — the real click target.
+        // Touch events are forwarded so mobile taps work the same as mouse clicks.
         const overlay = document.createElement('div');
         overlay.id = 'st-interactive-overlay';
         overlay.style.cssText = [
@@ -257,8 +265,14 @@ class InteractiveMapManager {
             'inset:0',
             'cursor:crosshair',
             'z-index:1',
+            'touch-action:none',
         ].join(';');
-        overlay.addEventListener('click', e => this.handleClick(e));
+        overlay.addEventListener('click',     e => this.handleClick(e));
+        overlay.addEventListener('touchend',  e => {
+            e.preventDefault();
+            const t = e.changedTouches[0];
+            this.handleClick({ clientX: t.clientX, clientY: t.clientY });
+        }, { passive: false });
 
         wrap.appendChild(this.canvas);
         wrap.appendChild(overlay);
@@ -471,13 +485,109 @@ window.toggleClothing = name => stInteractive.toggle(name);
 window.dressAll       = ()   => stInteractive.dressAll();
 window.undressAll     = ()   => stInteractive.undressAll();
 
-// ── File picker buttons in the settings panel ─────────────────────────────────
+// ── File picker buttons & position sliders in the settings panel ─────────────
 
 (function setupFilePickers() {
     const poll = setInterval(() => {
         const btn = document.getElementById('st-interact-pick-base');
         if (!btn) return;
         clearInterval(poll);
+
+        // ── Position sliders (X / Y) ─────────────────────────────────────────
+        /** Move the puppet element to reflect current posX / posY values */
+        const applyPosition = () => {
+            const puppet = document.getElementById('st-interactive-puppet');
+            const wrap   = document.getElementById('st-puppet-wrap');
+            if (!puppet || !wrap) return;
+
+            const topBar   = document.getElementById('top-bar') || document.getElementById('top-settings-holder');
+            const sendForm = document.getElementById('send_form');
+            const topH     = topBar   ? topBar.offsetHeight   : 50;
+            const bottomH  = sendForm ? sendForm.offsetHeight  : 80;
+            const availH   = window.innerHeight - topH - bottomH;
+            const charH    = wrap.offsetHeight;
+            const charW    = wrap.offsetWidth;
+
+            const posX = stInteractive.posX;
+            const posY = stInteractive.posY;
+
+            const leftPx   = Math.round((window.innerWidth - charW) * (posX / 100));
+            const bottomPx = bottomH + Math.round((availH - charH) * (posY / 100));
+
+            puppet.style.left   = `${leftPx}px`;
+            puppet.style.bottom = `${bottomPx}px`;
+        };
+
+        /** Wire a range slider to persist its value and reposition puppet */
+        const wireSlider = (sliderId, axis, labelId) => {
+            const slider = document.getElementById(sliderId);
+            const label  = document.getElementById(labelId);
+            if (!slider) return;
+
+            // Restore saved value
+            const context  = window.SillyTavern.getContext();
+            const settings = context.extensionSettings['st-interact-chat'] || {};
+            const saved    = Number(settings[axis] ?? (axis === 'posX' ? 0 : 0));
+            slider.value   = saved;
+            stInteractive[axis] = saved;
+            if (label) label.textContent = `${Math.round(saved)}%`;
+
+            slider.addEventListener('input', e => {
+                const val = Number(e.target.value);
+                stInteractive[axis] = val;
+                if (label) label.textContent = `${Math.round(val)}%`;
+                applyPosition();
+
+                // Persist
+                const ctx  = window.SillyTavern.getContext();
+                const s    = ctx.extensionSettings['st-interact-chat'] || {};
+                s[axis]    = val;
+                ctx.extensionSettings['st-interact-chat'] = s;
+                if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+            });
+        };
+
+        wireSlider('st-interact-pos-x', 'posX', 'st-interact-pos-x-val');
+        wireSlider('st-interact-pos-y', 'posY', 'st-interact-pos-y-val');
+
+        // ── Scale slider ─────────────────────────────────────────────────────
+        const scaleSlider = document.getElementById('st-interact-scale');
+        const scaleLabel  = document.getElementById('st-interact-scale-val');
+        if (scaleSlider) {
+            const context  = window.SillyTavern.getContext();
+            const settings = context.extensionSettings['st-interact-chat'] || {};
+            const savedScale = Math.round((Number(settings.scale) || 0.45) * 100);
+            scaleSlider.value = savedScale;
+            if (scaleLabel) scaleLabel.textContent = `${savedScale}%`;
+
+            scaleSlider.addEventListener('input', e => {
+                const pct  = Number(e.target.value);
+                const frac = pct / 100;
+                if (scaleLabel) scaleLabel.textContent = `${pct}%`;
+
+                // Resize the puppet live
+                const wrap     = document.getElementById('st-puppet-wrap');
+                const topBar   = document.getElementById('top-bar') || document.getElementById('top-settings-holder');
+                const sendForm = document.getElementById('send_form');
+                const topH     = topBar   ? topBar.offsetHeight   : 50;
+                const bottomH  = sendForm ? sendForm.offsetHeight  : 80;
+                const availH   = window.innerHeight - topH - bottomH;
+                if (wrap) {
+                    const newH = Math.round(availH * frac);
+                    const newW = Math.round(newH * (stInteractive.CANVAS_W / stInteractive.CANVAS_H));
+                    wrap.style.height = `${newH}px`;
+                    wrap.style.width  = `${newW}px`;
+                    stInteractive.scale = frac;
+                    applyPosition();
+                }
+
+                const ctx  = window.SillyTavern.getContext();
+                const s    = ctx.extensionSettings['st-interact-chat'] || {};
+                s.scale    = frac;
+                ctx.extensionSettings['st-interact-chat'] = s;
+                if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+            });
+        }
 
         const link = (btnId, fileId, inputId) => {
             const b = document.getElementById(btnId);
