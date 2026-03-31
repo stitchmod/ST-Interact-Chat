@@ -1,14 +1,13 @@
 {
-    "display_name": "ST Interactive Chat",
-    "version": "1.0.1",
-    "description": "Интерактивные зоны прикосновений и динамические действия для VN Mode",
+    "display_name": "ST-Interact-Chat",
+    "version": "1.0.2",
+    "description": "Interactive touch zones and wardrobe system for Lima.",
     "author": "stitchmod",
     "homePage": "https://github.com/stitchmod/ST-Interact-Chat",
     "js": "index.js",
     "css": "style.css",
     "settings": "settings.html",
-    "loading_order": 60,
-    "requires": [],
-    "optional": [],
-    "auto_update": false
+    "loading_order": 50,
+    "auto_update": false,
+    "requires": []
 }
