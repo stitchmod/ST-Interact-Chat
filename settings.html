@@ -1,31 +1,39 @@
-﻿<div class="st-interact-settings">
-    <h4>Настройки интерактивной куклы</h4>
-    
-    <div class="inline-icons">
-        <label>Включить оверлей</label>
-        <input type="checkbox" id="st-interact-active">
+<div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+        <b>Lima Interactive</b>
+        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
+    <div class="inline-drawer-content">
 
-    <hr>
+        <div class="st-interact-settings">
+            <h4>Настройки интерактивной куклы Lima</h4>
+            
+            <div class="inline-icons">
+                <label for="st-interact-active">Включить оверлей зон касания</label>
+                <input type="checkbox" id="st-interact-active" checked>
+            </div>
 
-    <div class="margin-top-10">
-        <label title="Основное изображение персонажа (база без одежды)">Путь к базе (base.png):</label>
-        <input type="text" id="st-interact-base-path" class="text_box" placeholder="assets/base.png">
+            <hr>
+
+            <div class="margin-top-10">
+                <label title="Основное изображение персонажа без одежды">Путь к базе (base.png):</label>
+                <input type="text" id="st-interact-base-path" class="text_box" placeholder="assets/base.png" value="assets/base.png">
+            </div>
+
+            <div class="margin-top-10">
+                <label title="Цветная карта зон для кликов">Путь к карте зон (map.png):</label>
+                <input type="text" id="st-interact-map-path" class="text_box" placeholder="assets/map.png" value="assets/map.png">
+            </div>
+
+            <hr>
+
+            <h5>Гардероб (слои одежды)</h5>
+            <p class="note">Укажите слои в формате: название:путь</p>
+            
+            <textarea id="st-interact-wardrobe-cfg" class="text_box" placeholder="bra:assets/bra.png&#10;shirt:assets/shirt.png&#10;panties:assets/panties.png" rows="5"></textarea>
+
+            <p class="note">Каждый слой с новой строки или через запятую</p>
+        </div>
+
     </div>
-
-    <div class="margin-top-10">
-        <label title="Цветная карта зон для кликов">Путь к карте зон (map.png):</label>
-        <input type="text" id="st-interact-map-path" class="text_box" placeholder="assets/map.png">
-    </div>
-
-    <hr>
-
-    <h5>Гардероб (Слои одежды)</h5>
-    <p class="note">Укажите пути к PNG через запятую или по одному</p>
-    
-    <div id="st-interact-wardrobe-list">
-        <textarea id="st-interact-wardrobe-cfg" class="text_box" placeholder="bra:assets/bra.png, shirt:assets/shirt.png" rows="3"></textarea>
-    </div>
-
-    <p class="note">Формат: название:путь, название:путь</p>
 </div>
