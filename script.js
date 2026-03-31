@@ -34,7 +34,6 @@ class InteractiveMapManager {
         const scriptPath = import.meta.url;
         const extDir = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
 
-        // Функция исправления путей (убирает дубли assets/)
         const fixPath = (p) => {
             if (!p) return '';
             let clean = p.trim().replace(/^\/+|\/+$/g, '');
@@ -43,8 +42,6 @@ class InteractiveMapManager {
 
         const baseSrc = `${extDir}/${fixPath(settings.basePath || 'girl.png')}`;
         const mapSrc = `${extDir}/${fixPath(settings.mapPath || 'map.png')}`;
-
-        console.log("⏳ [ST Interactive] Загрузка слоев:", { base: baseSrc, map: mapSrc });
 
         try {
             await Promise.all([
@@ -61,7 +58,6 @@ class InteractiveMapManager {
                         const path = fixPath(parts[1].trim());
                         this.layers.clothing[name] = new Image();
                         await this.loadImage(this.layers.clothing[name], `${extDir}/${path}`);
-                        console.log(`👗 [ST Interactive] Слой одет: ${name}`);
                     }
                 }
             }
@@ -70,9 +66,9 @@ class InteractiveMapManager {
             this.canvas.height = 1216;
             this.renderVisibleLayers();
             this.isReady = true;
-            console.log("✅ [ST Interactive] Система готова.");
+            console.log("✅ [ST Interactive] Assets Loaded & Canvas Ready");
         } catch (e) {
-            console.error("❌ [ST Interactive] Ошибка загрузки (проверь наличие файлов в assets/):", e);
+            console.error("❌ [ST Interactive] Load Error:", e);
         }
 
         setInterval(() => this.tryInject(), 1000);
@@ -81,7 +77,7 @@ class InteractiveMapManager {
     loadImage(img, src) {
         return new Promise((resolve, reject) => {
             img.onload = () => resolve();
-            img.onerror = () => reject(`Не найден файл: ${src}`);
+            img.onerror = () => reject(src);
             img.src = src;
         });
     }
@@ -96,21 +92,27 @@ class InteractiveMapManager {
     }
 
     tryInject() {
-        const vnContainer = document.querySelector('.expression_holder');
+        // Пробуем найти стандартный контейнер или контейнер для Live2D/VRM
+        const vnContainer = document.querySelector('.expression_holder') || 
+                            document.querySelector('#expression_holder') ||
+                            document.querySelector('.canvas_container');
+
         if (!vnContainer || document.getElementById('st-interactive-overlay')) return;
+
+        console.log("💉 [ST Interactive] Внедряем куклу в контейнер:", vnContainer);
 
         const puppetContainer = document.createElement('div');
         puppetContainer.id = 'st-interactive-puppet';
-        puppetContainer.style = "position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; display:flex; justify-content:center; align-items:center;";
+        puppetContainer.style = "position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; display:flex; justify-content:center; align-items:center; z-index:999;";
         
-        this.canvas.style = "max-width:100%; max-height:100%; object-fit: contain;";
+        this.canvas.style = "max-width:100%; max-height:100%; object-fit: contain; image-rendering: pixelated;";
         puppetContainer.appendChild(this.canvas);
 
         const overlay = document.createElement('div');
         overlay.id = 'st-interactive-overlay';
-        overlay.style = "position:absolute; top:0; left:0; width:100%; height:100%; z-index:1000; cursor:crosshair;";
+        overlay.style = "position:absolute; top:0; left:0; width:100%; height:100%; z-index:1000; cursor:pointer;";
 
-        overlay.addEventListener('click', (e) => {
+        overlay.onclick = (e) => {
             if (!this.isReady) return;
             const rect = overlay.getBoundingClientRect();
             const scaleX = 832 / rect.width;
@@ -118,67 +120,50 @@ class InteractiveMapManager {
             const x = Math.floor((e.clientX - rect.left) * scaleX);
             const y = Math.floor((e.clientY - rect.top) * scaleY);
             
-            if (x < 0 || x >= 832 || y < 0 || y >= 1216) return;
-
-            const offscreenCanvas = document.createElement('canvas');
-            offscreenCanvas.width = 832;
-            offscreenCanvas.height = 1216;
-            const offCtx = offscreenCanvas.getContext('2d');
+            const offCanvas = document.createElement('canvas');
+            offCanvas.width = 832; offCanvas.height = 1216;
+            const offCtx = offCanvas.getContext('2d');
             offCtx.drawImage(this.layers.map, 0, 0);
             
-            const pixel = offCtx.getImageData(x, y, 1, 1).data;
-            const hex = [pixel[0], pixel[1], pixel[2]]
-                .map(c => c.toString(16).padStart(2, '0').toUpperCase())
-                .join('');
+            const p = offCtx.getImageData(x, y, 1, 1).data;
+            const hex = [p[0], p[1], p[2]].map(c => c.toString(16).padStart(2, '0').toUpperCase()).join('');
             
-            const zoneName = this.zones[hex];
-            if (zoneName && window.handleZoneClick) {
-                window.handleZoneClick(zoneName);
+            console.log(`🖱️ Клик: X:${x} Y:${y}, Цвет: #${hex}`);
+            const zone = this.zones[hex];
+            if (zone) {
+                console.log(`🎯 Попадание: ${zone}`);
+                if (window.handleZoneClick) window.handleZoneClick(zone);
             }
-        });
+        };
 
         vnContainer.appendChild(puppetContainer);
         vnContainer.appendChild(overlay);
-        console.log("✅ [ST Interactive] Оверлей внедрен в чат.");
     }
 }
 
 new InteractiveMapManager();
 
-// Логика выбора файлов для UI
+// Код для кнопок выбора файлов (без изменений)
 (function setupFilePickers() {
-    const pollInterval = setInterval(() => {
-        const btnBase = document.getElementById('st-interact-pick-base');
-        if (!btnBase) return; 
-        clearInterval(pollInterval);
+    const poll = setInterval(() => {
+        const btn = document.getElementById('st-interact-pick-base');
+        if (!btn) return; clearInterval(poll);
 
-        const handleFile = (btnId, fileId, inputId) => {
-            const btn = document.getElementById(btnId);
-            const file = document.getElementById(fileId);
-            const input = document.getElementById(inputId);
-            btn.onclick = () => file.click();
-            file.onchange = (e) => {
-                if (e.target.files[0]) {
-                    input.value = e.target.files[0].name;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            };
+        const link = (bId, fId, iId) => {
+            const b = document.getElementById(bId), f = document.getElementById(fId), i = document.getElementById(iId);
+            b.onclick = () => f.click();
+            f.onchange = (e) => { if(e.target.files[0]) { i.value = e.target.files[0].name; i.dispatchEvent(new Event('input', {bubbles:true})); } };
         };
-
-        handleFile('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
-        handleFile('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
-
-        const btnW = document.getElementById('st-interact-pick-wardrobe');
-        const fileW = document.getElementById('st-interact-file-wardrobe');
-        const areaW = document.getElementById('st-interact-wardrobe-cfg');
+        link('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
+        link('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
         
-        btnW.onclick = () => fileW.click();
-        fileW.onchange = (e) => {
+        const bW = document.getElementById('st-interact-pick-wardrobe'), fW = document.getElementById('st-interact-file-wardrobe'), aW = document.getElementById('st-interact-wardrobe-cfg');
+        bW.onclick = () => fW.click();
+        fW.onchange = (e) => {
             const files = Array.from(e.target.files);
-            const newItems = files.map(f => `${f.name.replace('.png', '')}:${f.name}`);
-            const cur = areaW.value.trim();
-            areaW.value = cur ? cur + ', ' + newItems.join(', ') : newItems.join(', ');
-            areaW.dispatchEvent(new Event('input', { bubbles: true }));
+            const items = files.map(f => `${f.name.replace('.png','')}:${f.name}`).join(', ');
+            aW.value = aW.value ? aW.value + ', ' + items : items;
+            aW.dispatchEvent(new Event('input', {bubbles:true}));
         };
     }, 500);
 })();
