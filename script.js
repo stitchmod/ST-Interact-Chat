@@ -5,7 +5,6 @@ class InteractiveMapManager {
         this.layers = { base: new Image(), map: new Image(), clothing: {} };
         this.isReady = false;
         
-        // Зоны кликов остаются прежними
         this.zones = {
             'DEFF90': 'Волосы', '9AAAEF': 'Лицо', '7F3300': 'Нос',
             'CCFFFA': 'Глаза', '61A7AA': 'Глаза', 'F49788': 'Губы', 
@@ -23,17 +22,15 @@ class InteractiveMapManager {
         this.init();
     }
 
-    // Слушаем события Таверны, как это делает Character Expressions
     setupEventListeners() {
+        if (!window.SillyTavern || !window.SillyTavern.eventSource) return;
         const { eventSource, event_types } = window.SillyTavern;
         
-        // Когда персонаж выбран или изменен
         eventSource.on(event_types.CHARACTER_SELECTED, () => {
-            console.log("👤 [ST Interactive] Персонаж изменен, обновляем оверлей...");
-            this.tryInject(true); // Принудительное обновление
+            console.log("👤 [ST Interactive] Персонаж изменен");
+            this.tryInject(true);
         });
 
-        // Когда чат загружен
         eventSource.on(event_types.CHAT_CHANGED, () => {
             this.tryInject(true);
         });
@@ -63,12 +60,11 @@ class InteractiveMapManager {
             this.canvas.height = 1216;
             this.render();
             this.isReady = true;
-            console.log("✅ [ST Interactive] Assets Loaded");
+            console.log("✅ [ST Interactive] Ресурсы загружены");
         } catch (e) {
             console.error("❌ [ST Interactive] Ошибка загрузки:", e);
         }
 
-        // Запускаем проверку наличия контейнера
         setInterval(() => this.tryInject(), 2000);
     }
 
@@ -83,25 +79,21 @@ class InteractiveMapManager {
     render() {
         this.ctx.clearRect(0, 0, 832, 1216);
         if (this.layers.base.complete) this.ctx.drawImage(this.layers.base, 0, 0);
-        Object.values(this.layers.clothing).forEach(img => {
-            if (img.complete) this.ctx.drawImage(img, 0, 0);
-        });
     }
 
     tryInject(force = false) {
         if (force) {
-            const oldOvl = document.getElementById('st-interactive-overlay');
-            if (oldOvl) oldOvl.remove();
+            const old = document.getElementById('st-interactive-overlay');
+            if (old) old.remove();
         }
 
         const host = document.querySelector('.expression_holder, #expression_holder, .canvas_container');
         if (!host || document.getElementById('st-interactive-overlay')) return;
 
-        console.log("💉 [ST Interactive] Внедрение в:", host.className);
+        console.log("💉 [ST Interactive] Внедрение оверлея");
 
         const overlay = document.createElement('div');
         overlay.id = 'st-interactive-overlay';
-        // z-index выше, чем у Character Expressions (у них обычно до 100)
         overlay.style = "position:absolute; top:0; left:0; width:100%; height:100%; z-index:500; cursor:crosshair;";
 
         overlay.onclick = (e) => {
@@ -110,9 +102,9 @@ class InteractiveMapManager {
             const x = Math.floor((e.clientX - r.left) * (832 / r.width));
             const y = Math.floor((e.clientY - r.top) * (1216 / r.height));
             
-            const tempCanvas = document.createElement('canvas');
-            tempCanvas.width = 832; tempCanvas.height = 1216;
-            const tCtx = tempCanvas.getContext('2d');
+            const temp = document.createElement('canvas');
+            temp.width = 832; temp.height = 1216;
+            const tCtx = temp.getContext('2d');
             tCtx.drawImage(this.layers.map, 0, 0);
             
             const p = tCtx.getImageData(x, y, 1, 1).data;
@@ -129,17 +121,29 @@ class InteractiveMapManager {
 
 new InteractiveMapManager();
 
-// UI логика (📂 кнопки) остается без изменений
+// --- БЛОК UI (ВЫБОР ФАЙЛОВ) ---
 (function setupUI() {
     const poll = setInterval(() => {
         const btn = document.getElementById('st-interact-pick-base');
-        if (!btn) return; clearInterval(poll);
-        const link = (bI, fI, iI) => {
-            const b = document.getElementById(bI), f = document.getElementById(fI), inp = document.getElementById(iI);
+        if (!btn) return;
+        clearInterval(poll);
+
+        const bind = (btnId, fileId, inputId) => {
+            const b = document.getElementById(btnId);
+            const f = document.getElementById(fileId);
+            const i = document.getElementById(inputId);
+            if (!b || !f || !i) return;
+
             b.onclick = () => f.click();
-            f.onchange = (e) => { if(e.target.files[0]) { inp.value = e.target.files[0].name; inp.dispatchEvent(new Event('input', {bubbles:true})); }};
+            f.onchange = (e) => {
+                if (e.target.files[0]) {
+                    i.value = e.target.files[0].name;
+                    i.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            };
         };
-        link('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
-        link('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
+
+        bind('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
+        bind('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
     }, 1000);
 })();
