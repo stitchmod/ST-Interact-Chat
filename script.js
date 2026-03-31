@@ -1,100 +1,138 @@
+/**
+ * ST Interactive — Character Puppet Overlay
+ * Overlay appended directly to <body> (same as #expression-wrapper in ST),
+ * click zone only covers the canvas, wardrobe exposed globally and via UI.
+ */
 class InteractiveMapManager {
     constructor() {
-        this.canvas = document.createElement('canvas');
+        this.CANVAS_W = 832;
+        this.CANVAS_H = 1216;
+
+        // Main display canvas
+        this.canvas     = document.createElement('canvas');
+        this.canvas.width  = this.CANVAS_W;
+        this.canvas.height = this.CANVAS_H;
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
 
-        // Отдельный offscreen-канвас для карты зон (создаём один раз, не на каждый клик)
-        this.mapCanvas = document.createElement('canvas');
+        // Offscreen canvas for hit-testing the zone map — created once
+        this.mapCanvas     = document.createElement('canvas');
+        this.mapCanvas.width  = this.CANVAS_W;
+        this.mapCanvas.height = this.CANVAS_H;
         this.mapCtx = this.mapCanvas.getContext('2d', { willReadFrequently: true });
 
         this.layers = {
             base: new Image(),
-            map: new Image(),
-            clothing: {}
+            map:  new Image(),
         };
 
-        this.isReady = false;
+        /**
+         * Default clothing items.
+         * zIndex controls draw order (higher = on top).
+         * shirt.png always has the highest zIndex (10) and sits over everything else.
+         */
+        this.clothing = [
+            { name: 'panties', file: 'panties.png', zIndex: 1,  img: new Image(), visible: true },
+            { name: 'bra',     file: 'bra.png',     zIndex: 2,  img: new Image(), visible: true },
+            { name: 'short',   file: 'short.png',   zIndex: 3,  img: new Image(), visible: true },
+            { name: 'shirt',   file: 'shirt.png',   zIndex: 10, img: new Image(), visible: true },
+        ];
 
+        // Zone map: pixel colour (HEX) -> body part label
         this.zones = {
-            'DEFF90': 'Волосы', '9AAAEF': 'Лицо', '7F3300': 'Нос',
-            'CCFFFA': 'Глаза', '61A7AA': 'Глаза', 'F49788': 'Губы',
-            'FFC9CD': 'Ухо', '522D00': 'Шея', '00FFFA': 'Плечи',
-            'FFAF99': 'Плечи', '57007F': 'Руки', 'F026FF': 'Руки',
-            'E3A3FF': 'Руки', '7F6A00': 'Руки', '7F0000': 'Руки',
-            '404040': 'Руки', '5B7F00': 'Торс', '07FF5E': 'Торс',
-            '61FF00': 'Пупок', '808080': 'Пах', 'FF004C': 'Вагина',
-            '0A88FF': 'Грудь', 'E1FF00': 'Грудь', '6A00FF': 'Ареола',
-            'FF6D05': 'Ареола', 'FF00FF': 'Сосок', 'FF0037': 'Сосок',
-            'A387FF': 'Бёдра', '000000': 'Бёдра', 'B1FF2B': 'Ступня'
+            'DEFF90': 'Волосы', '9AAAEF': 'Лицо',   '7F3300': 'Нос',
+            'CCFFFA': 'Глаза',  '61A7AA': 'Глаза',   'F49788': 'Губы',
+            'FFC9CD': 'Ухо',    '522D00': 'Шея',     '00FFFA': 'Плечи',
+            'FFAF99': 'Плечи',  '57007F': 'Руки',    'F026FF': 'Руки',
+            'E3A3FF': 'Руки',   '7F6A00': 'Руки',    '7F0000': 'Руки',
+            '404040': 'Руки',   '5B7F00': 'Торс',    '07FF5E': 'Торс',
+            '61FF00': 'Пупок',  '808080': 'Пах',     'FF004C': 'Вагина',
+            '0A88FF': 'Грудь',  'E1FF00': 'Грудь',   '6A00FF': 'Ареола',
+            'FF6D05': 'Ареола', 'FF00FF': 'Сосок',   'FF0037': 'Сосок',
+            'A387FF': 'Бёдра',  '000000': 'Бёдра',   'B1FF2B': 'Ступня',
         };
+
+        this.isReady         = false;
+        this.isEnabled       = true;
+        this._injectInterval = null;
 
         this.init();
     }
 
+    // ── Initialization ────────────────────────────────────────────────────────
+
     async init() {
-        const context = window.SillyTavern.getContext();
+        const context  = window.SillyTavern.getContext();
         const settings = context.extensionSettings['st-interact-chat'] || {};
 
+        // Respect the enable/disable checkbox
+        this.isEnabled = settings.enabled !== false; // default ON
+        if (!this.isEnabled) {
+            console.log('[ST Interactive] Отключён настройками');
+            return;
+        }
+
         const scriptPath = import.meta.url;
-        const extDir = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
+        const extDir     = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
 
         const fixPath = (p) => {
             if (!p) return '';
-            let clean = p.trim().replace(/^\/+|\/+$/g, '');
+            const clean = p.trim().replace(/^\/+|\/+$/g, '');
             return clean.startsWith('assets/') ? clean : `assets/${clean}`;
         };
 
         const baseSrc = `${extDir}/${fixPath(settings.basePath || 'girl.png')}`;
         const mapSrc  = `${extDir}/${fixPath(settings.mapPath  || 'map.png')}`;
 
+        // Read scale preference (0.1 to 1.0, default 0.45 = 45% of usable height)
+        this.scale = Math.min(1, Math.max(0.1, Number(settings.scale) || 0.45));
+
         try {
-            // Загружаем base и map параллельно
+            // Load base image and zone map in parallel
             await Promise.all([
                 this.loadImage(this.layers.base, baseSrc),
                 this.loadImage(this.layers.map,  mapSrc),
             ]);
 
-            // Загружаем гардероб параллельно вместо последовательного await в цикле
+            // Load default clothing in parallel; one failure does not break the rest
+            const clothingPromises = this.clothing.map(item =>
+                this.loadImage(item.img, `${extDir}/assets/${item.file}`)
+                    .catch(err => {
+                        console.warn(`[ST Interactive] Одежда "${item.name}": ${err.message}`);
+                        item.failedToLoad = true;
+                    })
+            );
+
+            // Load optional custom wardrobe from settings string "name:path, name2:path2"
+            const customPromises = [];
             if (settings.wardrobeString) {
-                const items = settings.wardrobeString
-                    .split(',')
-                    .map(i => i.trim())
-                    .filter(Boolean);
-
-                const wardrobePromises = items.map(item => {
-                    const parts = item.split(':');
-                    if (parts.length !== 2) return Promise.resolve(); // пропускаем кривые записи
-
-                    const name = parts[0].trim();
-                    const path = fixPath(parts[1].trim());
-                    const img  = new Image();
-                    this.layers.clothing[name] = img;
-                    return this.loadImage(img, `${extDir}/${path}`).catch(err => {
-                        // Один сломанный элемент гардероба не роняет всё остальное
-                        console.warn(`⚠️ [ST Interactive] Не удалось загрузить одежду "${name}":`, err);
-                    });
-                });
-
-                await Promise.allSettled(wardrobePromises);
+                for (const entry of settings.wardrobeString.split(',').map(s => s.trim()).filter(Boolean)) {
+                    const parts = entry.split(':');
+                    if (parts.length !== 2) continue;
+                    const [name, rawPath] = parts.map(s => s.trim());
+                    const img = new Image();
+                    customPromises.push(
+                        this.loadImage(img, `${extDir}/${fixPath(rawPath)}`)
+                            .then(() => {
+                                this.clothing.push({ name, file: rawPath, zIndex: 5, img, visible: false });
+                            })
+                            .catch(err => console.warn(`[ST Interactive] Кастом "${name}": ${err.message}`))
+                    );
+                }
             }
 
-            this.canvas.width    = 832;
-            this.canvas.height   = 1216;
-            this.mapCanvas.width  = 832;
-            this.mapCanvas.height = 1216;
+            await Promise.allSettled([...clothingPromises, ...customPromises]);
 
-            // Рисуем карту зон в offscreen-канвас один раз
+            // Bake zone map into offscreen canvas once — reused on every click
             this.mapCtx.drawImage(this.layers.map, 0, 0);
 
             this.renderVisibleLayers();
             this.isReady = true;
-            console.log('✅ [ST Interactive] Assets Loaded & Canvas Ready');
+            console.log('✅ [ST Interactive] Готов');
         } catch (e) {
-            console.error('❌ [ST Interactive] Load Error:', e);
+            console.error('❌ [ST Interactive] Ошибка загрузки:', e);
             return;
         }
 
-        // Пробуем инжектить сразу, затем повторяем по таймеру
         this.tryInject();
         this._injectInterval = setInterval(() => {
             if (this.tryInject()) clearInterval(this._injectInterval);
@@ -104,130 +142,353 @@ class InteractiveMapManager {
     loadImage(img, src) {
         return new Promise((resolve, reject) => {
             img.onload  = () => resolve(img);
-            img.onerror = () => reject(new Error(`Не удалось загрузить: ${src}`));
+            img.onerror = () => reject(new Error(`Не загрузилось: ${src}`));
             img.src = src;
         });
     }
 
+    // ── Rendering ─────────────────────────────────────────────────────────────
+
     renderVisibleLayers() {
-        this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+        this.ctx.clearRect(0, 0, this.CANVAS_W, this.CANVAS_H);
+
         if (this.layers.base.complete && this.layers.base.naturalWidth > 0) {
             this.ctx.drawImage(this.layers.base, 0, 0);
         }
-        for (const key in this.layers.clothing) {
-            const clothImg = this.layers.clothing[key];
-            if (clothImg.complete && clothImg.naturalWidth > 0) {
-                this.ctx.drawImage(clothImg, 0, 0);
-            }
+
+        // Sort by zIndex ascending, draw only visible and successfully loaded items
+        const sortedVisible = [...this.clothing]
+            .filter(c => c.visible && !c.failedToLoad && c.img.complete && c.img.naturalWidth > 0)
+            .sort((a, b) => a.zIndex - b.zIndex);
+
+        for (const item of sortedVisible) {
+            this.ctx.drawImage(item.img, 0, 0);
         }
     }
 
-    /**
-     * Ищет контейнер по правильным селекторам SillyTavern:
-     *   - VN-режим (групповой чат + waifuMode): #visual-novel-wrapper
-     *   - Обычный режим (одиночный персонаж):  #expression-wrapper
-     * Возвращает true, если инжект прошёл успешно.
-     */
+    // ── Public wardrobe API ───────────────────────────────────────────────────
+
+    wear(name) {
+        const item = this.clothing.find(c => c.name === name);
+        if (item) { item.visible = true;  this.renderVisibleLayers(); this._syncWardrobeButtons(); }
+    }
+
+    remove(name) {
+        const item = this.clothing.find(c => c.name === name);
+        if (item) { item.visible = false; this.renderVisibleLayers(); this._syncWardrobeButtons(); }
+    }
+
+    toggle(name) {
+        const item = this.clothing.find(c => c.name === name);
+        if (item) { item.visible = !item.visible; this.renderVisibleLayers(); this._syncWardrobeButtons(); }
+    }
+
+    dressAll() {
+        this.clothing.forEach(c => { c.visible = true; });
+        this.renderVisibleLayers();
+        this._syncWardrobeButtons();
+    }
+
+    undressAll() {
+        this.clothing.forEach(c => { c.visible = false; });
+        this.renderVisibleLayers();
+        this._syncWardrobeButtons();
+    }
+
+    // ── DOM Injection ─────────────────────────────────────────────────────────
+
     tryInject() {
-        // Уже внедрили — ничего делать не нужно
-        if (document.getElementById('st-interactive-overlay')) return true;
+        if (document.getElementById('st-interactive-puppet')) return true;
 
-        // Приоритет: VN-wrapper (видим) → expression-wrapper (видим)
-        // Селекторы взяты из index.js расширения Character Expression
-        const vnWrapper   = document.getElementById('visual-novel-wrapper');
-        const exprWrapper = document.getElementById('expression-wrapper');
+        // Measure reserved UI areas so we never overlap them
+        const topBar   = document.getElementById('top-bar')
+                      || document.getElementById('top-settings-holder')
+                      || document.querySelector('header');
+        const sendForm = document.getElementById('send_form')
+                      || document.querySelector('#bottom-bar');
 
-        // Выбираем первый видимый контейнер
-        const vnContainer =
-            (vnWrapper   && vnWrapper.offsetParent   !== null ? vnWrapper   : null) ||
-            (exprWrapper && exprWrapper.offsetParent !== null ? exprWrapper : null);
+        const topH    = topBar   ? topBar.offsetHeight   : 50;
+        const bottomH = sendForm ? sendForm.offsetHeight  : 80;
+        const availH  = window.innerHeight - topH - bottomH;
 
-        if (!vnContainer) return false;
+        // Pixel size of the character canvas on screen, maintaining aspect ratio
+        const charH = Math.round(availH * this.scale);
+        const charW = Math.round(charH * (this.CANVAS_W / this.CANVAS_H));
 
-        console.log('💉 [ST Interactive] Внедряем куклу в контейнер:', vnContainer.id);
-
-        // Обёртка с канвасом персонажа
-        const puppetContainer = document.createElement('div');
-        puppetContainer.id = 'st-interactive-puppet';
-        puppetContainer.style.cssText = [
-            'position:absolute', 'top:0', 'left:0',
-            'width:100%', 'height:100%',
+        // ── Outer puppet shell ─────────────────────────────────────────────
+        // Fixed to bottom-left above the send bar; pointer-events disabled
+        // so the shell itself never blocks clicks outside the character.
+        const puppet = document.createElement('div');
+        puppet.id = 'st-interactive-puppet';
+        puppet.style.cssText = [
+            'position:fixed',
+            `bottom:${bottomH}px`,
+            'left:0',
+            'z-index:50',
             'pointer-events:none',
-            'display:flex', 'justify-content:center', 'align-items:center',
-            'z-index:999',
+            'display:flex',
+            'align-items:flex-end',
+        ].join(';');
+
+        // ── Canvas wrapper: exact size of the rendered character ───────────
+        // Only this element (and its children) are clickable.
+        const wrap = document.createElement('div');
+        wrap.id = 'st-puppet-wrap';
+        wrap.style.cssText = [
+            'position:relative',
+            `width:${charW}px`,
+            `height:${charH}px`,
+            'pointer-events:auto',
+            'overflow:hidden',
         ].join(';');
 
         this.canvas.style.cssText = [
-            'max-width:100%', 'max-height:100%',
-            'object-fit:contain',
+            'display:block',
+            'width:100%',
+            'height:100%',
             'image-rendering:pixelated',
         ].join(';');
 
-        puppetContainer.appendChild(this.canvas);
-
-        // Прозрачный оверлей для обработки кликов
+        // Transparent overlay covering ONLY the canvas — the real click target
         const overlay = document.createElement('div');
         overlay.id = 'st-interactive-overlay';
         overlay.style.cssText = [
-            'position:absolute', 'top:0', 'left:0',
-            'width:100%', 'height:100%',
-            'z-index:1000', 'cursor:pointer',
+            'position:absolute',
+            'inset:0',
+            'cursor:crosshair',
+            'z-index:1',
         ].join(';');
+        overlay.addEventListener('click', e => this.handleClick(e));
 
-        overlay.addEventListener('click', (e) => this.handleClick(e));
+        wrap.appendChild(this.canvas);
+        wrap.appendChild(overlay);
+        this._injectResizeHandle(wrap);
+        puppet.appendChild(wrap);
+        document.body.appendChild(puppet);
 
-        vnContainer.style.position = 'relative'; // нужно для absolute-позиционирования детей
-        vnContainer.appendChild(puppetContainer);
-        vnContainer.appendChild(overlay);
+        // Wardrobe buttons go into the extensions menu
+        this._injectWardrobePanel();
 
+        console.log(`[ST Interactive] Внедрён. Размер: ${charW}x${charH}px`);
         return true;
     }
+
+    /**
+     * Resize grip — drag up/down to scale the character.
+     * Saves scale to extensionSettings so it survives reload.
+     */
+    _injectResizeHandle(wrap) {
+        const grip = document.createElement('div');
+        grip.id = 'st-puppet-resize';
+        grip.title = 'Потяните вверх/вниз для изменения размера';
+        grip.style.cssText = [
+            'position:absolute',
+            'top:0',
+            'right:0',
+            'width:20px',
+            'height:20px',
+            'background:rgba(255,255,255,0.2)',
+            'border-bottom-left-radius:4px',
+            'cursor:nwse-resize',
+            'z-index:2',
+            'display:flex',
+            'align-items:center',
+            'justify-content:center',
+            'font-size:11px',
+            'user-select:none',
+            'color:rgba(255,255,255,0.7)',
+        ].join(';');
+        grip.textContent = '⤡';
+        wrap.appendChild(grip);
+
+        let startY, startH;
+
+        grip.addEventListener('mousedown', e => {
+            e.preventDefault();
+            startY = e.clientY;
+            startH = wrap.offsetHeight;
+
+            const onMove = e => {
+                const delta = startY - e.clientY;   // drag up = bigger
+                const topBar   = document.getElementById('top-bar') || document.getElementById('top-settings-holder');
+                const sendForm = document.getElementById('send_form');
+                const topH     = topBar   ? topBar.offsetHeight   : 50;
+                const bottomH  = sendForm ? sendForm.offsetHeight  : 80;
+                const maxH     = window.innerHeight - topH - bottomH;
+
+                const newH = Math.max(80, Math.min(maxH, startH + delta));
+                const newW = Math.round(newH * (this.CANVAS_W / this.CANVAS_H));
+                wrap.style.height = `${newH}px`;
+                wrap.style.width  = `${newW}px`;
+            };
+
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup',  onUp);
+
+                // Persist the new scale
+                const topBar   = document.getElementById('top-bar') || document.getElementById('top-settings-holder');
+                const sendForm = document.getElementById('send_form');
+                const topH     = topBar   ? topBar.offsetHeight   : 50;
+                const bottomH  = sendForm ? sendForm.offsetHeight  : 80;
+                const availH   = window.innerHeight - topH - bottomH;
+                const newScale = wrap.offsetHeight / availH;
+
+                const context  = window.SillyTavern.getContext();
+                const settings = context.extensionSettings['st-interact-chat'] || {};
+                settings.scale = newScale;
+                context.extensionSettings['st-interact-chat'] = settings;
+                if (typeof context.saveSettingsDebounced === 'function') context.saveSettingsDebounced();
+            };
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup',   onUp);
+        });
+    }
+
+    /**
+     * Injects the wardrobe panel into ST's extensions menu dropdown.
+     * #extensionsMenu is always present in the DOM, just hidden until the
+     * magic-wand icon is clicked.
+     */
+    _injectWardrobePanel() {
+        const LABELS = {
+            panties: '🩲 Трусики',
+            bra:     '👙 Лифчик',
+            short:   '🩳 Шорты',
+            shirt:   '👕 Рубашка',
+        };
+
+        const poll = setInterval(() => {
+            if (document.getElementById('st-wardrobe-panel')) { clearInterval(poll); return; }
+
+            const extMenu = document.getElementById('extensionsMenu')
+                         || document.getElementById('extensions_menu')
+                         || document.querySelector('.extensions-menu');
+            if (!extMenu) return;
+            clearInterval(poll);
+
+            const panel = document.createElement('div');
+            panel.id = 'st-wardrobe-panel';
+            panel.style.cssText = 'padding:6px 8px 8px; border-top:1px solid var(--SmartThemeBorderColor,#555)';
+
+            // Title
+            const title = document.createElement('div');
+            title.style.cssText = 'font-weight:600; margin-bottom:5px; font-size:0.82em; opacity:0.75; letter-spacing:.03em';
+            title.textContent = '👗 Гардероб';
+            panel.appendChild(title);
+
+            // Clothing toggle buttons
+            const btnRow = document.createElement('div');
+            btnRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px;';
+            panel.appendChild(btnRow);
+
+            for (const item of this.clothing) {
+                const btn = document.createElement('button');
+                btn.id        = `st-ward-btn-${item.name}`;
+                btn.className = 'menu_button';
+                btn.style.cssText = 'padding:3px 9px; font-size:0.8em; transition:opacity .15s';
+                btn.textContent   = LABELS[item.name] || item.name;
+                btn.style.opacity = item.visible ? '1' : '0.35';
+                btn.title         = item.visible ? 'Снять' : 'Надеть';
+                btn.addEventListener('click', () => this.toggle(item.name));
+                btnRow.appendChild(btn);
+            }
+
+            // Quick-action row
+            const actionRow = document.createElement('div');
+            actionRow.style.cssText = 'display:flex; gap:4px; margin-top:5px;';
+
+            const makeBtn = (text, onClick) => {
+                const b = document.createElement('button');
+                b.className = 'menu_button';
+                b.style.cssText = 'padding:3px 8px; font-size:0.8em; flex:1';
+                b.textContent = text;
+                b.addEventListener('click', onClick);
+                return b;
+            };
+
+            actionRow.appendChild(makeBtn('✅ Одеть всё',  () => this.dressAll()));
+            actionRow.appendChild(makeBtn('❌ Снять всё', () => this.undressAll()));
+            panel.appendChild(actionRow);
+
+            extMenu.appendChild(panel);
+        }, 600);
+    }
+
+    /** Keeps wardrobe button styles in sync with current clothing state */
+    _syncWardrobeButtons() {
+        for (const item of this.clothing) {
+            const btn = document.getElementById(`st-ward-btn-${item.name}`);
+            if (!btn) continue;
+            btn.style.opacity = item.visible ? '1' : '0.35';
+            btn.title         = item.visible ? 'Снять' : 'Надеть';
+        }
+    }
+
+    // ── Click / zone detection ────────────────────────────────────────────────
 
     handleClick(e) {
         if (!this.isReady) return;
 
-        const rect   = e.currentTarget.getBoundingClientRect();
-        const scaleX = 832 / rect.width;
-        const scaleY = 1216 / rect.height;
-        const x = Math.floor((e.clientX - rect.left)  * scaleX);
-        const y = Math.floor((e.clientY - rect.top)   * scaleY);
+        const rect   = this.canvas.getBoundingClientRect();
+        const scaleX = this.CANVAS_W / rect.width;
+        const scaleY = this.CANVAS_H / rect.height;
+        const x = Math.floor((e.clientX - rect.left) * scaleX);
+        const y = Math.floor((e.clientY - rect.top)  * scaleY);
 
-        // Читаем пиксель из заранее подготовленного offscreen-канваса карты зон
-        const p   = this.mapCtx.getImageData(x, y, 1, 1).data;
-        const hex = [p[0], p[1], p[2]]
+        const px  = this.mapCtx.getImageData(x, y, 1, 1).data;
+        const hex = [px[0], px[1], px[2]]
             .map(c => c.toString(16).padStart(2, '0').toUpperCase())
             .join('');
 
-        console.log(`🖱️ Клик: X:${x} Y:${y}, Цвет: #${hex}`);
+        console.log(`Клик: X:${x} Y:${y}  Цвет: #${hex}`);
 
         const zone = this.zones[hex];
         if (zone) {
-            console.log(`🎯 Попадание: ${zone}`);
-            if (typeof window.handleZoneClick === 'function') {
-                window.handleZoneClick(zone);
-            }
+            console.log(`Зона: ${zone}`);
+            if (typeof window.handleZoneClick === 'function') window.handleZoneClick(zone);
         }
     }
 }
 
-new InteractiveMapManager();
+// ── Instantiate & expose global API ──────────────────────────────────────────
 
-// Привязка кнопок выбора файлов в панели настроек
+const stInteractive = new InteractiveMapManager();
+
+/**
+ * Global wardrobe API — call from the chat model or any script:
+ *
+ *   window.wearClothing('bra')      — надеть
+ *   window.removeClothing('shirt')  — снять
+ *   window.toggleClothing('short')  — переключить
+ *   window.dressAll()               — одеть всё
+ *   window.undressAll()             — снять всё
+ */
+window.wearClothing   = name => stInteractive.wear(name);
+window.removeClothing = name => stInteractive.remove(name);
+window.toggleClothing = name => stInteractive.toggle(name);
+window.dressAll       = ()   => stInteractive.dressAll();
+window.undressAll     = ()   => stInteractive.undressAll();
+
+// ── File picker buttons in the settings panel ─────────────────────────────────
+
 (function setupFilePickers() {
     const poll = setInterval(() => {
         const btn = document.getElementById('st-interact-pick-base');
         if (!btn) return;
         clearInterval(poll);
 
-        const link = (bId, fId, iId) => {
-            const b = document.getElementById(bId);
-            const f = document.getElementById(fId);
-            const i = document.getElementById(iId);
+        const link = (btnId, fileId, inputId) => {
+            const b = document.getElementById(btnId);
+            const f = document.getElementById(fileId);
+            const i = document.getElementById(inputId);
             if (!b || !f || !i) return;
             b.addEventListener('click', () => f.click());
-            f.addEventListener('change', (e) => {
-                if (e.target.files[0]) {
-                    i.value = e.target.files[0].name;
+            f.addEventListener('change', e => {
+                const file = e.target.files[0];
+                if (file) {
+                    i.value = file.name;
                     i.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             });
@@ -242,12 +503,11 @@ new InteractiveMapManager();
         if (!bW || !fW || !aW) return;
 
         bW.addEventListener('click', () => fW.click());
-        fW.addEventListener('change', (e) => {
-            const files = Array.from(e.target.files);
-            const items = files
+        fW.addEventListener('change', e => {
+            const newItems = Array.from(e.target.files)
                 .map(f => `${f.name.replace(/\.[^.]+$/, '')}:${f.name}`)
                 .join(', ');
-            aW.value = aW.value ? `${aW.value}, ${items}` : items;
+            aW.value = aW.value ? `${aW.value}, ${newItems}` : newItems;
             aW.dispatchEvent(new Event('input', { bubbles: true }));
         });
     }, 500);
