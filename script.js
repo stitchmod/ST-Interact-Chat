@@ -12,36 +12,16 @@ class InteractiveMapManager {
         this.isReady = false;
 
         this.zones = {
-            'DEFF90': 'Волосы', 
-            '9AAAEF': 'Лицо', 
-            '7F3300': 'Нос',
-            'CCFFFA': 'Глаза', 
-            '61A7AA': 'Глаза', 
-            'F49788': 'Губы', 
-            'FFC9CD': 'Ухо', 
-            '522D00': 'Шея', 
-            '00FFFA': 'Плечи', 
-            'FFAF99': 'Плечи', 
-            '57007F': 'Руки', 
-            'F026FF': 'Руки',
-            'E3A3FF': 'Руки', 
-            '7F6A00': 'Руки', 
-            '7F0000': 'Руки', 
-            '404040': 'Руки', 
-            '5B7F00': 'Торс', 
-            '07FF5E': 'Торс',
-            '61FF00': 'Пупок', 
-            '808080': 'Пах', 
-            'FF004C': 'Вагина',
-            '0A88FF': 'Грудь', 
-            'E1FF00': 'Грудь', 
-            '6A00FF': 'Ареола', 
-            'FF6D05': 'Ареола', 
-            'FF00FF': 'Сосок', 
-            'FF0037': 'Сосок',
-            'A387FF': 'Бёдра', 
-            '000000': 'Бёдра', 
-            'B1FF2B': 'Ступня'
+            'DEFF90': 'Волосы', '9AAAEF': 'Лицо', '7F3300': 'Нос',
+            'CCFFFA': 'Глаза', '61A7AA': 'Глаза', 'F49788': 'Губы', 
+            'FFC9CD': 'Ухо', '522D00': 'Шея', '00FFFA': 'Плечи', 
+            'FFAF99': 'Плечи', '57007F': 'Руки', 'F026FF': 'Руки',
+            'E3A3FF': 'Руки', '7F6A00': 'Руки', '7F0000': 'Руки', 
+            '404040': 'Руки', '5B7F00': 'Торс', '07FF5E': 'Торс',
+            '61FF00': 'Пупок', '808080': 'Пах', 'FF004C': 'Вагина',
+            '0A88FF': 'Грудь', 'E1FF00': 'Грудь', '6A00FF': 'Ареола', 
+            'FF6D05': 'Ареола', 'FF00FF': 'Сосок', 'FF0037': 'Сосок',
+            'A387FF': 'Бёдра', '000000': 'Бёдра', 'B1FF2B': 'Ступня'
         };
 
         this.init();
@@ -54,10 +34,17 @@ class InteractiveMapManager {
         const scriptPath = import.meta.url;
         const extDir = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
 
-        console.log("⏳ [ST Interactive] Loading asset layers...");
+        // Функция исправления путей (убирает дубли assets/)
+        const fixPath = (p) => {
+            if (!p) return '';
+            let clean = p.trim().replace(/^\/+|\/+$/g, '');
+            return clean.startsWith('assets/') ? clean : `assets/${clean}`;
+        };
 
-        const baseSrc = `${extDir}/${settings.basePath || 'assets/girl.png'}`;
-        const mapSrc = `${extDir}/${settings.mapPath || 'assets/map.png'}`;
+        const baseSrc = `${extDir}/${fixPath(settings.basePath || 'girl.png')}`;
+        const mapSrc = `${extDir}/${fixPath(settings.mapPath || 'map.png')}`;
+
+        console.log("⏳ [ST Interactive] Загрузка слоев:", { base: baseSrc, map: mapSrc });
 
         try {
             await Promise.all([
@@ -71,23 +58,21 @@ class InteractiveMapManager {
                     const parts = item.split(':');
                     if (parts.length === 2) {
                         const name = parts[0].trim();
-                        const path = parts[1].trim();
+                        const path = fixPath(parts[1].trim());
                         this.layers.clothing[name] = new Image();
                         await this.loadImage(this.layers.clothing[name], `${extDir}/${path}`);
-                        console.log(`👗 [ST Interactive] Layer loaded: ${name}`);
+                        console.log(`👗 [ST Interactive] Слой одет: ${name}`);
                     }
                 }
             }
 
             this.canvas.width = 832;
             this.canvas.height = 1216;
-            
             this.renderVisibleLayers();
-            
             this.isReady = true;
-            console.log("✅ [ST Interactive] All assets ready. Waiting for VN Mode...");
+            console.log("✅ [ST Interactive] Система готова.");
         } catch (e) {
-            console.error("❌ [ST Interactive] Critical loading error:", e);
+            console.error("❌ [ST Interactive] Ошибка загрузки (проверь наличие файлов в assets/):", e);
         }
 
         setInterval(() => this.tryInject(), 1000);
@@ -96,23 +81,17 @@ class InteractiveMapManager {
     loadImage(img, src) {
         return new Promise((resolve, reject) => {
             img.onload = () => resolve();
-            img.onerror = () => reject(`Could not load image at ${src}`);
+            img.onerror = () => reject(`Не найден файл: ${src}`);
             img.src = src;
         });
     }
 
     renderVisibleLayers() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-        
-        if (this.layers.base.complete) {
-            this.ctx.drawImage(this.layers.base, 0, 0);
-        }
-
+        if (this.layers.base.complete) this.ctx.drawImage(this.layers.base, 0, 0);
         for (const key in this.layers.clothing) {
             const clothImg = this.layers.clothing[key];
-            if (clothImg.complete) {
-                this.ctx.drawImage(clothImg, 0, 0);
-            }
+            if (clothImg.complete) this.ctx.drawImage(clothImg, 0, 0);
         }
     }
 
@@ -133,7 +112,6 @@ class InteractiveMapManager {
 
         overlay.addEventListener('click', (e) => {
             if (!this.isReady) return;
-            
             const rect = overlay.getBoundingClientRect();
             const scaleX = 832 / rect.width;
             const scaleY = 1216 / rect.height;
@@ -155,65 +133,52 @@ class InteractiveMapManager {
             
             const zoneName = this.zones[hex];
             if (zoneName && window.handleZoneClick) {
-                console.log(`🎯 [ST Interactive] Hit: ${zoneName} (#${hex}) at X:${x} Y:${y}`);
                 window.handleZoneClick(zoneName);
-            } else {
-                console.log(`💨 [ST Interactive] Miss at X:${x} Y:${y} (Color: #${hex})`);
             }
         });
 
         vnContainer.appendChild(puppetContainer);
         vnContainer.appendChild(overlay);
-        console.log("✅ [ST Interactive] Overlay and Puppet injected into VN Mode");
+        console.log("✅ [ST Interactive] Оверлей внедрен в чат.");
     }
 }
 
-// Запуск основного менеджера
 new InteractiveMapManager();
 
-// --- НОВЫЙ БЛОК ДЛЯ ВЫБОРА ФАЙЛОВ ---
+// Логика выбора файлов для UI
 (function setupFilePickers() {
     const pollInterval = setInterval(() => {
         const btnBase = document.getElementById('st-interact-pick-base');
         if (!btnBase) return; 
         clearInterval(pollInterval);
 
-        const setupInput = (btnId, fileId, inputId) => {
+        const handleFile = (btnId, fileId, inputId) => {
             const btn = document.getElementById(btnId);
             const file = document.getElementById(fileId);
             const input = document.getElementById(inputId);
-            if (!btn || !file || !input) return;
-
-            btn.addEventListener('click', () => file.click());
-            file.addEventListener('change', (e) => {
+            btn.onclick = () => file.click();
+            file.onchange = (e) => {
                 if (e.target.files[0]) {
-                    input.value = `assets/${e.target.files[0].name}`;
+                    input.value = e.target.files[0].name;
                     input.dispatchEvent(new Event('input', { bubbles: true }));
                 }
-            });
+            };
         };
 
-        setupInput('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
-        setupInput('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
+        handleFile('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
+        handleFile('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
 
-        const btnWardrobe = document.getElementById('st-interact-pick-wardrobe');
-        const fileWardrobe = document.getElementById('st-interact-file-wardrobe');
-        const areaWardrobe = document.getElementById('st-interact-wardrobe-cfg');
+        const btnW = document.getElementById('st-interact-pick-wardrobe');
+        const fileW = document.getElementById('st-interact-file-wardrobe');
+        const areaW = document.getElementById('st-interact-wardrobe-cfg');
         
-        if (btnWardrobe && fileWardrobe && areaWardrobe) {
-            btnWardrobe.addEventListener('click', () => fileWardrobe.click());
-            fileWardrobe.addEventListener('change', (e) => {
-                const files = Array.from(e.target.files);
-                if (files.length > 0) {
-                    const newItems = files.map(f => {
-                        const name = f.name.replace('.png', '');
-                        return `${name}:assets/${f.name}`;
-                    });
-                    const currentVal = areaWardrobe.value.trim();
-                    areaWardrobe.value = currentVal ? currentVal + ', ' + newItems.join(', ') : newItems.join(', ');
-                    areaWardrobe.dispatchEvent(new Event('input', { bubbles: true }));
-                }
-            });
-        }
+        btnW.onclick = () => fileW.click();
+        fileW.onchange = (e) => {
+            const files = Array.from(e.target.files);
+            const newItems = files.map(f => `${f.name.replace('.png', '')}:${f.name}`);
+            const cur = areaW.value.trim();
+            areaW.value = cur ? cur + ', ' + newItems.join(', ') : newItems.join(', ');
+            areaW.dispatchEvent(new Event('input', { bubbles: true }));
+        };
     }, 500);
 })();
