@@ -1,9 +1,8 @@
-﻿class InteractiveMapManager {
+class InteractiveMapManager {
     constructor() {
         this.canvas = document.createElement('canvas');
         this.ctx = this.canvas.getContext('2d', { willReadFrequently: true });
         
-        // Объект для хранения всех загруженных слоев
         this.layers = {
             base: new Image(),
             map: new Image(),
@@ -12,7 +11,6 @@
 
         this.isReady = false;
 
-        // Полная библиотека цветов (соответствует твоей карте)
         this.zones = {
             'DEFF90': 'Волосы', 
             '9AAAEF': 'Лицо', 
@@ -50,28 +48,23 @@
     }
 
     async init() {
-        // Получаем доступ к настройкам SillyTavern
         const context = window.SillyTavern.getContext();
         const settings = context.extensionSettings['st-interact-chat'] || {};
         
-        // Определяем путь к папке расширения
         const scriptPath = import.meta.url;
         const extDir = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
 
         console.log("⏳ [ST Interactive] Loading asset layers...");
 
-        // Формируем пути к базовым файлам
         const baseSrc = `${extDir}/${settings.basePath || 'assets/girl.png'}`;
         const mapSrc = `${extDir}/${settings.mapPath || 'assets/map.png'}`;
 
         try {
-            // Загружаем основные слои
             await Promise.all([
                 this.loadImage(this.layers.base, baseSrc),
                 this.loadImage(this.layers.map, mapSrc)
             ]);
 
-            // Загружаем одежду из wardrobeString (формат "bra:assets/bra.png, shirt:assets/shirt.png")
             if (settings.wardrobeString) {
                 const items = settings.wardrobeString.split(',').map(i => i.trim());
                 for (const item of items) {
@@ -86,11 +79,9 @@
                 }
             }
 
-            // Настройка размеров (твое разрешение 832x1216)
             this.canvas.width = 832;
             this.canvas.height = 1216;
             
-            // Первичная отрисовка
             this.renderVisibleLayers();
             
             this.isReady = true;
@@ -99,7 +90,6 @@
             console.error("❌ [ST Interactive] Critical loading error:", e);
         }
 
-        // Запускаем мониторинг появления VN контейнера
         setInterval(() => this.tryInject(), 1000);
     }
 
@@ -114,12 +104,10 @@
     renderVisibleLayers() {
         this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
         
-        // 1. Рисуем тело (girl.png)
         if (this.layers.base.complete) {
             this.ctx.drawImage(this.layers.base, 0, 0);
         }
 
-        // 2. Рисуем все слои одежды поверх тела
         for (const key in this.layers.clothing) {
             const clothImg = this.layers.clothing[key];
             if (clothImg.complete) {
@@ -132,16 +120,13 @@
         const vnContainer = document.querySelector('.expression_holder');
         if (!vnContainer || document.getElementById('st-interactive-overlay')) return;
 
-        // Создаем контейнер для нашей "куклы"
         const puppetContainer = document.createElement('div');
         puppetContainer.id = 'st-interactive-puppet';
         puppetContainer.style = "position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; display:flex; justify-content:center; align-items:center;";
         
-        // Стилизуем Canvas, чтобы он вписывался в размер VN окна
         this.canvas.style = "max-width:100%; max-height:100%; object-fit: contain;";
         puppetContainer.appendChild(this.canvas);
 
-        // Создаем невидимый интерактивный слой
         const overlay = document.createElement('div');
         overlay.id = 'st-interactive-overlay';
         overlay.style = "position:absolute; top:0; left:0; width:100%; height:100%; z-index:1000; cursor:crosshair;";
@@ -150,18 +135,13 @@
             if (!this.isReady) return;
             
             const rect = overlay.getBoundingClientRect();
-            
-            // Рассчитываем коэффициенты масштабирования
             const scaleX = 832 / rect.width;
             const scaleY = 1216 / rect.height;
-            
             const x = Math.floor((e.clientX - rect.left) * scaleX);
             const y = Math.floor((e.clientY - rect.top) * scaleY);
             
-            // Проверка попадания в координаты
             if (x < 0 || x >= 832 || y < 0 || y >= 1216) return;
 
-            // Считываем цвет с карты (она в памяти)
             const offscreenCanvas = document.createElement('canvas');
             offscreenCanvas.width = 832;
             offscreenCanvas.height = 1216;
@@ -188,5 +168,52 @@
     }
 }
 
-// Запуск
+// Запуск основного менеджера
 new InteractiveMapManager();
+
+// --- НОВЫЙ БЛОК ДЛЯ ВЫБОРА ФАЙЛОВ ---
+(function setupFilePickers() {
+    const pollInterval = setInterval(() => {
+        const btnBase = document.getElementById('st-interact-pick-base');
+        if (!btnBase) return; 
+        clearInterval(pollInterval);
+
+        const setupInput = (btnId, fileId, inputId) => {
+            const btn = document.getElementById(btnId);
+            const file = document.getElementById(fileId);
+            const input = document.getElementById(inputId);
+            if (!btn || !file || !input) return;
+
+            btn.addEventListener('click', () => file.click());
+            file.addEventListener('change', (e) => {
+                if (e.target.files[0]) {
+                    input.value = `assets/${e.target.files[0].name}`;
+                    input.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+        };
+
+        setupInput('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
+        setupInput('st-interact-pick-map', 'st-interact-file-map', 'st-interact-map-path');
+
+        const btnWardrobe = document.getElementById('st-interact-pick-wardrobe');
+        const fileWardrobe = document.getElementById('st-interact-file-wardrobe');
+        const areaWardrobe = document.getElementById('st-interact-wardrobe-cfg');
+        
+        if (btnWardrobe && fileWardrobe && areaWardrobe) {
+            btnWardrobe.addEventListener('click', () => fileWardrobe.click());
+            fileWardrobe.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                if (files.length > 0) {
+                    const newItems = files.map(f => {
+                        const name = f.name.replace('.png', '');
+                        return `${name}:assets/${f.name}`;
+                    });
+                    const currentVal = areaWardrobe.value.trim();
+                    areaWardrobe.value = currentVal ? currentVal + ', ' + newItems.join(', ') : newItems.join(', ');
+                    areaWardrobe.dispatchEvent(new Event('input', { bubbles: true }));
+                }
+            });
+        }
+    }, 500);
+})();
