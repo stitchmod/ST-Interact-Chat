@@ -1,41 +1,49 @@
-<div class="st-interact-settings">
-    <h4>Настройки интерактивной куклы</h4>
-    
-    <div class="inline-icons">
-        <label>Включить оверлей</label>
-        <input type="checkbox" id="st-interact-active">
+<div class="inline-drawer">
+    <div class="inline-drawer-toggle inline-drawer-header">
+        <b>ST Interactive Chat</b>
+        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
+    <div class="inline-drawer-content">
+        <div class="st-interact-settings">
+            <div class="inline-icons">
+                <label>Включить оверлей</label>
+                <input type="checkbox" id="st-interact-active">
+            </div>
 
-    <hr>
+            <hr>
 
-    <div class="margin-top-10">
-        <label>Изображение персонажа (база):</label>
-        <div style="display: flex; gap: 5px;">
-            <input type="text" id="st-interact-base-path" class="text_box" placeholder="assets/base.png">
-            <button id="st-interact-pick-base" class="menu_button" title="Выбрать файл">📂</button>
-            <input type="file" id="st-interact-file-base" style="display:none" accept="image/png">
+            <div class="margin-top-10">
+                <label>Базовое изображение (body):</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="st-interact-base-path" class="text_box" placeholder="girl.png">
+                    <button id="st-interact-pick-base" class="menu_button" title="Выбрать файл">📂</button>
+                    <input type="file" id="st-interact-file-base" style="display:none" accept="image/png">
+                </div>
+            </div>
+
+            <div class="margin-top-10">
+                <label>Карта кликов (map):</label>
+                <div style="display: flex; gap: 5px;">
+                    <input type="text" id="st-interact-map-path" class="text_box" placeholder="map.png">
+                    <button id="st-interact-pick-map" class="menu_button" title="Выбрать файл">📂</button>
+                    <input type="file" id="st-interact-file-map" style="display:none" accept="image/png">
+                </div>
+            </div>
+
+            <hr>
+
+            <div class="margin-top-10">
+                <label>Гардероб (Слои одежды):</label>
+                <textarea id="st-interact-wardrobe-cfg" class="text_box" rows="3" placeholder="bra:bra.png, shirt:shirt.png"></textarea>
+                <button id="st-interact-pick-wardrobe" class="menu_button margin-top-10" style="width:100%;">
+                    ➕ Добавить файлы в гардероб
+                </button>
+                <input type="file" id="st-interact-file-wardrobe" style="display:none" accept="image/png" multiple>
+            </div>
+
+            <p class="note" style="font-size: 0.8em; margin-top: 10px; opacity: 0.8;">
+                * Файлы должны находиться в папке assets расширения.
+            </p>
         </div>
     </div>
-
-    <div class="margin-top-10">
-        <label>Карта зон (map.png):</label>
-        <div style="display: flex; gap: 5px;">
-            <input type="text" id="st-interact-map-path" class="text_box" placeholder="assets/map.png">
-            <button id="st-interact-pick-map" class="menu_button" title="Выбрать файл">📂</button>
-            <input type="file" id="st-interact-file-map" style="display:none" accept="image/png">
-        </div>
-    </div>
-
-    <hr>
-
-    <h5>Гардероб (Слои одежды)</h5>
-    <div id="st-interact-wardrobe-list">
-        <div style="display: flex; flex-direction: column; gap: 5px;">
-            <textarea id="st-interact-wardrobe-cfg" class="text_box" placeholder="bra:assets/bra.png, shirt:assets/shirt.png" rows="3"></textarea>
-            <button id="st-interact-pick-wardrobe" class="menu_button">➕ Добавить файлы в гардероб</button>
-            <input type="file" id="st-interact-file-wardrobe" style="display:none" accept="image/png" multiple>
-        </div>
-    </div>
-
-    <p class="note">Формат: название:путь, название:путь. <br>При выборе файлов название берется из имени PNG.</p>
 </div>
