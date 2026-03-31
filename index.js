@@ -14,7 +14,7 @@ jQuery(async () => {
         const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
         
         // Встраиваем его во вкладку расширений (иконка пазла)
-        $("#extension_settings").append(settingsHtml);
+        $("#extensions_settings").append(settingsHtml);
         console.log("[ST Interactive] Интерфейс загружен.");
     } catch (e) {
         console.error("[ST Interactive] Ошибка загрузки settings.html! Проверь имя папки.", e);
