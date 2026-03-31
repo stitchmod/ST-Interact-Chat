@@ -1,53 +1,44 @@
 // ST-Interact-Chat / index.js
-// Интерактивные зоны касания + wardrobe system для Lima
+// Без тяжёлых моделей, без топ-левел import
 
 jQuery(async () => {
-    console.log("[ST Interactive] Запуск расширения Lima Interactive...");
+    console.log("[ST Interactive] Запуск...");
 
-    // === ДОБАВЛЕНО: Автоматическая загрузка интерфейса в меню расширений ===
-    // Важно: имя должно строго совпадать с названием папки расширения!
-    const extensionName = "lima-interactive";                    // ← Изменено под твой manifest
+    // === ДОБАВЛЕНО: Загрузка интерфейса в меню расширений ===
+    // Имя должно строго совпадать с названием папки расширения!
+    const extensionName = "ST-Interact-Chat"; 
     const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
-
+    
     try {
+        // Скачиваем твой settings.html
         const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
+        
+        // Встраиваем его во вкладку расширений (иконка пазла)
         $("#extension_settings").append(settingsHtml);
-        console.log("[ST Interactive] ✅ Интерфейс настроек успешно загружен в меню расширений");
+        console.log("[ST Interactive] Интерфейс загружен.");
     } catch (e) {
-        console.warn("[ST Interactive] Не удалось загрузить settings.html. Возможно, расширение установлено не через third-party.");
-        console.warn("[ST Interactive] Пробуем загрузить из scripts/extensions/...");
-
-        try {
-            const altPath = `scripts/extensions/${extensionName}`;
-            const settingsHtml = await $.get(`${altPath}/settings.html`);
-            $("#extension_settings").append(settingsHtml);
-            console.log("[ST Interactive] ✅ Интерфейс загружен (альтернативный путь)");
-        } catch (e2) {
-            console.error("[ST Interactive] ❌ Не удалось загрузить settings.html ни по одному пути.", e2);
-        }
+        console.error("[ST Interactive] Ошибка загрузки settings.html! Проверь имя папки.", e);
     }
-    // ===================================================================
+    // ========================================================
 
-    // Динамически подгружаем библиотеку действий
+    // Динамически подгружаем библиотеку действий (чтобы не было ошибки импорта)
     let actionlibrary;
     try {
         const module = await import('./actionlibrary.js');
         actionlibrary = module.default || module;
-        console.log("[ST Interactive] Библиотека действий загружена");
     } catch (e) {
         console.error("[ST Interactive] Не удалось загрузить actionlibrary.js", e);
         return;
     }
 
-    // Подгружаем скрипт карты (script.js)
+    // Подгружаем скрипт карты (script.js должен выполняться)
     try {
         await import('./script.js');
-        console.log("[ST Interactive] script.js успешно загружен");
+        console.log("[ST Interactive] script.js загружен");
     } catch (e) {
-        console.warn("[ST Interactive] script.js не найден или уже загружен", e);
+        console.warn("[ST Interactive] script.js не найден или уже загружен");
     }
 
-    // Основная функция обработки клика по зоне
     window.handleZoneClick = async (zoneName) => {
         const library = actionlibrary[zoneName];
         
@@ -56,29 +47,21 @@ jQuery(async () => {
             return;
         }
 
-        // Выбираем случайную фразу
         const randomPhrase = library[Math.floor(Math.random() * library.length)];
 
-        // Замена конструкций [левое/правое] или [left/right]
+        // Замена [левое/правое]
         const finalAction = randomPhrase.replace(/\[([^\]]+)\/([^\]]+)\]/g, (match, p1, p2) => {
-            return Math.random() > 0.5 ? p1.trim() : p2.trim();
+            return Math.random() > 0.5 ? p1 : p2;
         });
 
-        // Вставляем в поле ввода SillyTavern
         const inputField = document.getElementById('send_textarea');
         if (inputField) {
             inputField.value = finalAction;
             inputField.focus();
             inputField.dispatchEvent(new Event('input', { bubbles: true }));
-            
-            // Опционально: можно сразу отправить сообщение (раскомментировать при необходимости)
-            // inputField.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
-
             console.log(`[ST Interactive] → ${zoneName}:`, finalAction);
-        } else {
-            console.error("[ST Interactive] Поле ввода #send_textarea не найдено");
         }
     };
 
-    console.log("[ST Interactive] ✅ Расширение полностью инициализировано. Карта касаний готова.");
+    console.log("[ST Interactive] ✅ Готово! Карта касаний работает мгновенно.");
 });
