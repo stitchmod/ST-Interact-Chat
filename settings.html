@@ -5,6 +5,7 @@
     </div>
     <div class="inline-drawer-content">
         <div class="st-interact-settings">
+
             <div class="inline-icons">
                 <label>Включить оверлей</label>
                 <input type="checkbox" id="st-interact-active">
@@ -14,7 +15,7 @@
 
             <div class="margin-top-10">
                 <label>Базовое изображение (body):</label>
-                <div style="display: flex; gap: 5px;">
+                <div style="display:flex; gap:5px;">
                     <input type="text" id="st-interact-base-path" class="text_box" placeholder="girl.png">
                     <button id="st-interact-pick-base" class="menu_button" title="Выбрать файл">📂</button>
                     <input type="file" id="st-interact-file-base" style="display:none" accept="image/png">
@@ -23,7 +24,7 @@
 
             <div class="margin-top-10">
                 <label>Карта кликов (map):</label>
-                <div style="display: flex; gap: 5px;">
+                <div style="display:flex; gap:5px;">
                     <input type="text" id="st-interact-map-path" class="text_box" placeholder="map.png">
                     <button id="st-interact-pick-map" class="menu_button" title="Выбрать файл">📂</button>
                     <input type="file" id="st-interact-file-map" style="display:none" accept="image/png">
@@ -32,18 +33,63 @@
 
             <hr>
 
+            <!-- ── Position & scale controls ──────────────────────────── -->
             <div class="margin-top-10">
-                <label>Гардероб (Слои одежды):</label>
-                <textarea id="st-interact-wardrobe-cfg" class="text_box" rows="3" placeholder="bra:bra.png, shirt:shirt.png"></textarea>
+                <label style="display:flex; justify-content:space-between;">
+                    <span>↔ Позиция X (лево → право)</span>
+                    <span id="st-interact-pos-x-val" style="font-variant-numeric:tabular-nums; min-width:3ch; text-align:right;">0%</span>
+                </label>
+                <input
+                    type="range"
+                    id="st-interact-pos-x"
+                    min="0" max="100" step="1" value="0"
+                    style="width:100%; margin-top:4px;"
+                >
+            </div>
+
+            <div class="margin-top-10">
+                <label style="display:flex; justify-content:space-between;">
+                    <span>↕ Позиция Y (низ → верх)</span>
+                    <span id="st-interact-pos-y-val" style="font-variant-numeric:tabular-nums; min-width:3ch; text-align:right;">0%</span>
+                </label>
+                <input
+                    type="range"
+                    id="st-interact-pos-y"
+                    min="0" max="100" step="1" value="0"
+                    style="width:100%; margin-top:4px;"
+                >
+            </div>
+
+            <div class="margin-top-10">
+                <label style="display:flex; justify-content:space-between;">
+                    <span>🔎 Размер персонажа</span>
+                    <span id="st-interact-scale-val" style="font-variant-numeric:tabular-nums; min-width:3ch; text-align:right;">45%</span>
+                </label>
+                <input
+                    type="range"
+                    id="st-interact-scale"
+                    min="10" max="100" step="1" value="45"
+                    style="width:100%; margin-top:4px;"
+                >
+            </div>
+
+            <hr>
+
+            <div class="margin-top-10">
+                <label>Гардероб (слои одежды):</label>
+                <textarea id="st-interact-wardrobe-cfg" class="text_box" rows="3"
+                    placeholder="bra:bra.png, shirt:shirt.png"></textarea>
                 <button id="st-interact-pick-wardrobe" class="menu_button margin-top-10" style="width:100%;">
                     ➕ Добавить файлы в гардероб
                 </button>
                 <input type="file" id="st-interact-file-wardrobe" style="display:none" accept="image/png" multiple>
             </div>
 
-            <p class="note" style="font-size: 0.8em; margin-top: 10px; opacity: 0.8;">
-                * Файлы должны находиться в папке assets расширения.
+            <p class="note" style="font-size:0.8em; margin-top:10px; opacity:0.8;">
+                * Файлы должны находиться в папке <code>assets</code> расширения.<br>
+                * Изменения позиции и размера применяются немедленно и сохраняются автоматически.
             </p>
+
         </div>
     </div>
 </div>
