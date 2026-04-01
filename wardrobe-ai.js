@@ -7,7 +7,7 @@
  * ── Что делает этот файл ────────────────────────────────────────────────────
  *  1. Инжектирует текущее состояние гардероба в промпт перед каждой генерацией
  *  2. Парсит команды из ответов модели и применяет их к манекену
- *  3. Управляет UI-панелью гардероба (перенесено из script.js)
+ *  3. Управляет UI-панелью гардероба
  *  4. Создаёт кнопки динамически при добавлении новой одежды
  *
  * ── Синтаксис команд в ответах модели ──────────────────────────────────────
@@ -31,7 +31,8 @@ const LABELS = {
 
 const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1).replace(/[-_]/g, ' ');
 
-// ── Паттерн команд ───────────────────────────────────────────────────────────
+// ── Паттерн команд: регистронезависимый ─────────────────────────────────────
+// Принимает [wear:X], [WEAR:X], [toggle:X], [TOGGLE:X] и т.д.
 const CMD_PATTERN = /\[(wear|remove|toggle|dressAll|undressAll)(?::([^\]]+))?\]/gi;
 
 // ── Системная инструкция для модели ─────────────────────────────────────────
@@ -39,11 +40,11 @@ const SYSTEM_INSTRUCTION = `[WARDROBE SYSTEM — read carefully]
 You control your character's visible clothing on a live puppet. You MUST use the commands below whenever clothing changes or is referenced.
 
 Commands (embed anywhere in your reply — they are invisible to the user):
-  [wear:<n>]    — put item on
-  [remove:<n>]  — take item off
-  [toggle:<n>]  — flip state
-  [dressAll]       — put all items on
-  [undressAll]     — remove all items
+  [wear:<n>]      — put item on
+  [remove:<n>]    — take item off
+  [toggle:<n>]    — flip state
+  [dressAll]      — put all items on
+  [undressAll]    — remove all items
 
 CRITICAL RULES:
 1. Treat the "Currently worn / Currently removed" list below as GROUND TRUTH. Do not invent or assume clothing state from conversation history.
@@ -94,6 +95,11 @@ function executeCommand(action, name) {
     }
 }
 
+/**
+ * Обрабатывает текст ответа: применяет все найденные команды и возвращает
+ * очищенный текст без тегов команд.
+ * Идемпотентен: повторный вызов на уже очищенном тексте ничего не меняет.
+ */
 function processResponse(text) {
     if (!text) return text;
 
@@ -105,10 +111,12 @@ function processResponse(text) {
     });
 
     if (found) {
-        console.log('[WardrobeAI] Команды применены:', getClothingState());
+        console.log('[WardrobeAI] Команды применены. Состояние:', getClothingState());
+        syncWardrobeButtons();
     }
 
-    return cleaned.replace(/[ \t]{2,}/g, ' ').trim();
+    // Убираем лишние пробелы/переносы оставшиеся от удалённых тегов
+    return cleaned.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // ── UI: панель гардероба ──────────────────────────────────────────────────────
@@ -117,6 +125,9 @@ let _btnRow  = null;
 let _panelEl = null;
 
 function createWardrobeButton(item) {
+    // Не создавать дубликаты
+    if (document.getElementById(`st-ward-btn-${item.name}`)) return null;
+
     const btn = document.createElement('button');
     btn.id            = `st-ward-btn-${item.name}`;
     btn.className     = 'menu_button';
@@ -134,12 +145,27 @@ function syncWardrobeButtons() {
     for (const item of (window.stInteractive?.clothing ?? [])) {
         const btn = document.getElementById(`st-ward-btn-${item.name}`);
         if (!btn) {
-            if (_btnRow) createWardrobeButton(item); // новый предмет — создать кнопку
+            // Новый предмет появился в clothing — создать кнопку
+            if (_btnRow) createWardrobeButton(item);
             continue;
         }
         btn.style.opacity = item.visible ? '1' : '0.35';
         btn.title         = item.visible ? 'Снять' : 'Надеть';
     }
+}
+
+function showDebugState() {
+    const state = getClothingState();
+    if (!state.length) {
+        alert('[WardrobeAI] Гардероб пуст или stInteractive не инициализирован.');
+        return;
+    }
+    const lines = state.map(c => `${c.visible ? '✅' : '❌'} ${c.name}`);
+    const block = buildStateBlock();
+    console.group('[WardrobeAI] Состояние гардероба');
+    console.log(block);
+    console.groupEnd();
+    alert('Состояние гардероба:\n\n' + lines.join('\n') + '\n\n(Полный промпт-блок — в консоли)');
 }
 
 function injectWardrobePanel() {
@@ -166,17 +192,19 @@ function injectWardrobePanel() {
         _btnRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px;';
         panel.appendChild(_btnRow);
 
+        // Создать кнопки для всей текущей одежды
         for (const item of (window.stInteractive?.clothing ?? [])) {
             createWardrobeButton(item);
         }
 
+        // Ряд действий: одеть всё / снять всё / дебаг
         const actionRow = document.createElement('div');
-        actionRow.style.cssText = 'display:flex; gap:4px; margin-top:5px;';
+        actionRow.style.cssText = 'display:flex; gap:4px; margin-top:5px; flex-wrap:wrap;';
 
-        const makeBtn = (text, onClick) => {
+        const makeBtn = (text, onClick, extraStyle = '') => {
             const b = document.createElement('button');
             b.className = 'menu_button';
-            b.style.cssText = 'padding:3px 8px; font-size:0.8em; flex:1';
+            b.style.cssText = `padding:3px 8px; font-size:0.8em; flex:1; ${extraStyle}`;
             b.textContent = text;
             b.addEventListener('click', onClick);
             return b;
@@ -184,6 +212,7 @@ function injectWardrobePanel() {
 
         actionRow.appendChild(makeBtn('✅ Одеть всё',  () => window.dressAll?.()));
         actionRow.appendChild(makeBtn('❌ Снять всё', () => window.undressAll?.()));
+        actionRow.appendChild(makeBtn('🔍 Дебаг',     () => showDebugState(), 'flex:0; opacity:0.6;'));
         panel.appendChild(actionRow);
 
         extMenu.appendChild(panel);
@@ -194,7 +223,10 @@ function injectWardrobePanel() {
 // ── Перехват глобального API для синхронизации кнопок ────────────────────────
 
 function wrapGlobalAPI() {
-    const wrap = (fn) => (...args) => { fn?.(...args); syncWardrobeButtons(); };
+    const wrap = (fn) => (...args) => {
+        fn?.(...args);
+        syncWardrobeButtons();
+    };
 
     window.wearClothing   = wrap(window.wearClothing);
     window.removeClothing = wrap(window.removeClothing);
@@ -247,7 +279,7 @@ class WardrobeAI {
             !ctx?.eventSource ||
             !ctx?.event_types ||
             !window.stInteractive ||
-            !window.wearClothing   // ждём пока script.js выставит глобальный API
+            !window.wearClothing  // ждём пока script.js выставит глобальный API
         ) {
             setTimeout(() => this._waitForST(), 500);
             return;
@@ -259,28 +291,36 @@ class WardrobeAI {
     }
 
     _hookEvents({ eventSource, event_types }) {
-        // Инъекция состояния — пробуем несколько событий для совместимости
+        // ── Инъекция состояния перед генерацией ──────────────────────────────
+        // Пробуем все известные события — хотя бы одно сработает
         const PRE_EVENTS = [
             'GENERATE_BEFORE_COMBINE_PROMPTS',
             'CHAT_COMPLETION_PROMPT_READY',
             'GENERATE_AFTER_COMBINE_PROMPTS',
         ];
+        let injectionHooked = false;
         for (const evName of PRE_EVENTS) {
             const ev = event_types[evName];
             if (ev) {
                 eventSource.on(ev, (data) => injectStateIntoPrompt(data));
                 console.log(`[WardrobeAI] Хук инъекции: ${evName}`);
+                injectionHooked = true;
             }
         }
+        if (!injectionHooked) {
+            console.warn('[WardrobeAI] Не найдено ни одного события для инъекции. Доступные event_types:', Object.keys(event_types));
+        }
 
-        // Парсинг ответа — до сохранения в chat[]
+        // ── Парсинг ответа: до сохранения в chat[] ───────────────────────────
         if (event_types.MESSAGE_RECEIVED) {
             eventSource.on(event_types.MESSAGE_RECEIVED, (data) => {
                 if (data?.mes) data.mes = processResponse(data.mes);
             });
+            console.log('[WardrobeAI] Хук парсинга: MESSAGE_RECEIVED');
         }
 
-        // Финальный контроль — после рендера
+        // ── Финальная зачистка: после рендера (страховка) ────────────────────
+        // Если MESSAGE_RECEIVED не убрал теги — убираем здесь
         if (event_types.CHARACTER_MESSAGE_RENDERED) {
             eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (msgId) => {
                 const chat = window.SillyTavern.getContext().chat;
@@ -294,6 +334,7 @@ class WardrobeAI {
                 const el = document.querySelector(`[mesid="${msgId}"] .mes_text`);
                 if (el) el.innerHTML = cleaned;
             });
+            console.log('[WardrobeAI] Хук зачистки: CHARACTER_MESSAGE_RENDERED');
         }
 
         this._hooked = true;
@@ -305,11 +346,17 @@ class WardrobeAI {
 
     exec(action, name) { executeCommand(action, name); }
 
-    /** Зарегистрировать новый предмет одежды (добавляет кнопку если панель открыта) */
+    /**
+     * Зарегистрировать новый предмет одежды.
+     * Вызывается из script.js после загрузки кастомной одежды через настройки.
+     */
     registerClothingItem(item) {
         if (document.getElementById(`st-ward-btn-${item.name}`)) return;
         createWardrobeButton(item);
     }
+
+    /** Принудительно пересинхронизировать кнопки с текущим состоянием */
+    syncButtons() { syncWardrobeButtons(); }
 
     fuzzyFind(query) {
         if (!query) return null;
@@ -349,3 +396,6 @@ function levenshtein(a, b) {
 
 export const wardrobeAI = new WardrobeAI();
 export default wardrobeAI;
+
+// Делаем доступным глобально, чтобы script.js мог вызывать registerClothingItem
+window.wardrobeAI = wardrobeAI;
