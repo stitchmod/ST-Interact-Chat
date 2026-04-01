@@ -118,7 +118,10 @@ class InteractiveMapManager {
                     customPromises.push(
                         this.loadImage(img, `${extDir}/${fixPath(rawPath)}`)
                             .then(() => {
-                                this.clothing.push({ name, file: rawPath, zIndex: 5, img, visible: false });
+                                const item = { name, file: rawPath, zIndex: 5, img, visible: false };
+                                this.clothing.push(item);
+                                // Уведомить wardrobe-ai чтобы добавить кнопку в панель
+                                window.wardrobeAI?.registerClothingItem(item);
                             })
                             .catch(err => console.warn(`[ST Interactive] Кастом "${name}": ${err.message}`))
                     );
