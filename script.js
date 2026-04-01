@@ -385,6 +385,7 @@ class InteractiveMapManager {
 // ── Instantiate & expose global API ──────────────────────────────────────────
 
 const stInteractive = new InteractiveMapManager();
+window.stInteractive = stInteractive;
 
 /**
  * Global wardrobe API — call from the chat model or any script:

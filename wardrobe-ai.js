@@ -243,7 +243,12 @@ class WardrobeAI {
 
     _waitForST() {
         const ctx = window.SillyTavern?.getContext();
-        if (!ctx?.eventSource || !ctx?.event_types || !window.stInteractive) {
+        if (
+            !ctx?.eventSource ||
+            !ctx?.event_types ||
+            !window.stInteractive ||
+            !window.wearClothing   // ждём пока script.js выставит глобальный API
+        ) {
             setTimeout(() => this._waitForST(), 500);
             return;
         }
