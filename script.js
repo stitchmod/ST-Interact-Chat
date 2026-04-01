@@ -175,29 +175,27 @@ class InteractiveMapManager {
 
     wear(name) {
         const item = this.clothing.find(c => c.name === name);
-        if (item) { item.visible = true;  this.renderVisibleLayers(); this._syncWardrobeButtons(); }
+        if (item) { item.visible = true; this.renderVisibleLayers(); }
     }
 
     remove(name) {
         const item = this.clothing.find(c => c.name === name);
-        if (item) { item.visible = false; this.renderVisibleLayers(); this._syncWardrobeButtons(); }
+        if (item) { item.visible = false; this.renderVisibleLayers(); }
     }
 
     toggle(name) {
         const item = this.clothing.find(c => c.name === name);
-        if (item) { item.visible = !item.visible; this.renderVisibleLayers(); this._syncWardrobeButtons(); }
+        if (item) { item.visible = !item.visible; this.renderVisibleLayers(); }
     }
 
     dressAll() {
         this.clothing.forEach(c => { c.visible = true; });
         this.renderVisibleLayers();
-        this._syncWardrobeButtons();
     }
 
     undressAll() {
         this.clothing.forEach(c => { c.visible = false; });
         this.renderVisibleLayers();
-        this._syncWardrobeButtons();
     }
 
     // ── DOM Injection ─────────────────────────────────────────────────────────
@@ -281,9 +279,6 @@ class InteractiveMapManager {
         puppet.appendChild(wrap);
         document.body.appendChild(puppet);
 
-        // Wardrobe buttons go into the extensions menu
-        this._injectWardrobePanel();
-
         console.log(`[ST Interactive] Внедрён. Размер: ${charW}x${charH}px`);
         return true;
     }
@@ -359,86 +354,6 @@ class InteractiveMapManager {
             document.addEventListener('mousemove', onMove);
             document.addEventListener('mouseup',   onUp);
         });
-    }
-
-    /**
-     * Injects the wardrobe panel into ST's extensions menu dropdown.
-     * #extensionsMenu is always present in the DOM, just hidden until the
-     * magic-wand icon is clicked.
-     */
-    _injectWardrobePanel() {
-        const LABELS = {
-            panties: '🩲 Трусики',
-            bra:     '👙 Лифчик',
-            short:   '🩳 Шорты',
-            shirt:   '👕 Рубашка',
-        };
-
-        const poll = setInterval(() => {
-            if (document.getElementById('st-wardrobe-panel')) { clearInterval(poll); return; }
-
-            const extMenu = document.getElementById('extensionsMenu')
-                         || document.getElementById('extensions_menu')
-                         || document.querySelector('.extensions-menu');
-            if (!extMenu) return;
-            clearInterval(poll);
-
-            const panel = document.createElement('div');
-            panel.id = 'st-wardrobe-panel';
-            panel.style.cssText = 'padding:6px 8px 8px; border-top:1px solid var(--SmartThemeBorderColor,#555)';
-
-            // Title
-            const title = document.createElement('div');
-            title.style.cssText = 'font-weight:600; margin-bottom:5px; font-size:0.82em; opacity:0.75; letter-spacing:.03em';
-            title.textContent = '👗 Гардероб';
-            panel.appendChild(title);
-
-            // Clothing toggle buttons
-            const btnRow = document.createElement('div');
-            btnRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px;';
-            panel.appendChild(btnRow);
-
-            for (const item of this.clothing) {
-                const btn = document.createElement('button');
-                btn.id        = `st-ward-btn-${item.name}`;
-                btn.className = 'menu_button';
-                btn.style.cssText = 'padding:3px 9px; font-size:0.8em; transition:opacity .15s';
-                btn.textContent   = LABELS[item.name] || item.name;
-                btn.style.opacity = item.visible ? '1' : '0.35';
-                btn.title         = item.visible ? 'Снять' : 'Надеть';
-                btn.addEventListener('click', () => this.toggle(item.name));
-                btnRow.appendChild(btn);
-            }
-
-            // Quick-action row
-            const actionRow = document.createElement('div');
-            actionRow.style.cssText = 'display:flex; gap:4px; margin-top:5px;';
-
-            const makeBtn = (text, onClick) => {
-                const b = document.createElement('button');
-                b.className = 'menu_button';
-                b.style.cssText = 'padding:3px 8px; font-size:0.8em; flex:1';
-                b.textContent = text;
-                b.addEventListener('click', onClick);
-                return b;
-            };
-
-            actionRow.appendChild(makeBtn('✅ Одеть всё',  () => this.dressAll()));
-            actionRow.appendChild(makeBtn('❌ Снять всё', () => this.undressAll()));
-            panel.appendChild(actionRow);
-
-            extMenu.appendChild(panel);
-        }, 600);
-    }
-
-    /** Keeps wardrobe button styles in sync with current clothing state */
-    _syncWardrobeButtons() {
-        for (const item of this.clothing) {
-            const btn = document.getElementById(`st-ward-btn-${item.name}`);
-            if (!btn) continue;
-            btn.style.opacity = item.visible ? '1' : '0.35';
-            btn.title         = item.visible ? 'Снять' : 'Надеть';
-        }
     }
 
     // ── Click / zone detection ────────────────────────────────────────────────
