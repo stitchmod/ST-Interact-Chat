@@ -3,6 +3,7 @@
  * Overlay appended directly to <body> (same as #expression-wrapper in ST),
  * click zone only covers the canvas, wardrobe exposed globally and via UI.
  */
+import { wardrobeAI } from './wardrobe-ai.js';
 class InteractiveMapManager {
     constructor() {
         this.CANVAS_W = 832;
