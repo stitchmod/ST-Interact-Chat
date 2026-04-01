@@ -4,6 +4,7 @@
  * click zone only covers the canvas, wardrobe exposed globally and via UI.
  */
 import { wardrobeAI } from './wardrobe-ai.js';
+import { ZoneHighlighter } from './highlight.js';
 class InteractiveMapManager {
     constructor() {
         this.CANVAS_W = 832;
@@ -389,6 +390,7 @@ class InteractiveMapManager {
 
 const stInteractive = new InteractiveMapManager();
 window.stInteractive = stInteractive;
+window._zoneHighlighter = new ZoneHighlighter(stInteractive);
 
 /**
  * Global wardrobe API — call from the chat model or any script:
