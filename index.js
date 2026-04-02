@@ -1,27 +1,22 @@
 // ST-Interact-Chat / index.js
-// Без тяжёлых моделей, без топ-левел import
 
 jQuery(async () => {
     console.log("[ST Interactive] Запуск...");
 
-    // === ДОБАВЛЕНО: Загрузка интерфейса в меню расширений ===
-    // Имя должно строго совпадать с названием папки расширения!
-    const extensionName = "ST-Interact-Chat"; 
+    const extensionName       = "ST-Interact-Chat";
     const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
-    
-    try {
-        // Скачиваем твой settings.html
-        const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
-        
-        // Встраиваем его во вкладку расширений (иконка пазла)
-        $("#extensions_settings").append(settingsHtml);
-        console.log("[ST Interactive] Интерфейс загружен.");
-    } catch (e) {
-        console.error("[ST Interactive] Ошибка загрузки settings.html! Проверь имя папки.", e);
-    }
-    // ========================================================
 
-    // Динамически подгружаем библиотеку действий (чтобы не было ошибки импорта)
+    // ── Загрузка settings.html в панель расширений ────────────────────────────
+    // #extensions_settings2 — правильный контейнер для третьесторонних расширений
+    try {
+        const settingsHtml = await $.get(`${extensionFolderPath}/settings.html`);
+        $("#extensions_settings2").append(settingsHtml);
+        console.log("[ST Interactive] settings.html загружен в #extensions_settings2");
+    } catch (e) {
+        console.error("[ST Interactive] Ошибка загрузки settings.html:", e);
+    }
+
+    // ── Библиотека действий (фразы для зон касания) ───────────────────────────
     let actionlibrary;
     try {
         const module = await import('./actionlibrary.js');
@@ -31,17 +26,27 @@ jQuery(async () => {
         return;
     }
 
-    // Подгружаем скрипт карты (script.js должен выполняться)
+    // ── Основной скрипт (манекен, canvas, гардероб) ───────────────────────────
     try {
         await import('./script.js');
         console.log("[ST Interactive] script.js загружен");
     } catch (e) {
-        console.warn("[ST Interactive] script.js не найден или уже загружен");
+        console.warn("[ST Interactive] script.js:", e.message);
     }
 
+    // ── Wardrobe AI (парсинг тегов, кнопки, промпт) ───────────────────────────
+    // Загружаем ПОСЛЕ script.js чтобы window.stInteractive уже существовал
+    try {
+        await import('./wardrobe-ai.js');
+        console.log("[ST Interactive] wardrobe-ai.js загружен");
+    } catch (e) {
+        console.warn("[ST Interactive] wardrobe-ai.js:", e.message);
+    }
+
+    // ── Обработчик кликов по зонам манекена ──────────────────────────────────
     window.handleZoneClick = async (zoneName) => {
         const library = actionlibrary[zoneName];
-        
+
         if (!library || library.length === 0) {
             console.warn(`[ST Interactive] Нет фраз для зоны: ${zoneName}`);
             return;
@@ -49,8 +54,8 @@ jQuery(async () => {
 
         const randomPhrase = library[Math.floor(Math.random() * library.length)];
 
-        // Замена [левое/правое]
-        const finalAction = randomPhrase.replace(/\[([^\]]+)\/([^\]]+)\]/g, (match, p1, p2) => {
+        // Замена [левое/правое] → случайный вариант
+        const finalAction = randomPhrase.replace(/\[([^\]]+)\/([^\]]+)\]/g, (_, p1, p2) => {
             return Math.random() > 0.5 ? p1 : p2;
         });
 
@@ -63,5 +68,5 @@ jQuery(async () => {
         }
     };
 
-    console.log("[ST Interactive] ✅ Готово! Карта касаний работает мгновенно.");
+    console.log("[ST Interactive] ✅ Готово!");
 });
