@@ -1,80 +1,173 @@
 /**
  * wardrobe-ai.js — AI Wardrobe Controller for ST Interactive
  *
- * Импорт в script.js (первая строка файла):
+ * Импорт в script.js:
  *   import { wardrobeAI } from './wardrobe-ai.js';
  *
  * ── Что делает этот файл ────────────────────────────────────────────────────
- *  1. Инжектирует текущее состояние гардероба в промпт перед каждой генерацией
- *  2. Парсит команды из ответов модели и применяет их к манекену
- *  3. Управляет UI-панелью гардероба
+ *  1. Инжектирует текущее состояние гардероба + каталог команд в промпт
+ *  2. Парсит команды из ответов модели и применяет слойную логику:
+ *       — [wear:maid_costume]  → все outerwear скрываются автоматически
+ *       — [wear:shirt] когда надет костюм → костюм снимается автоматически
+ *  3. Управляет UI-панелью гардероба с секциями по категориям
  *  4. Создаёт кнопки динамически при добавлении новой одежды
  *
- * ── Синтаксис команд в ответах модели ──────────────────────────────────────
- *   [wear:shirt]       — надеть предмет
+ * ── Синтаксис команд ────────────────────────────────────────────────────────
+ *   [wear:shirt]       — надеть предмет (с авто-логикой слоёв)
  *   [remove:bra]       — снять предмет
  *   [toggle:panties]   — переключить
  *   [dressAll]         — одеть всё
  *   [undressAll]       — снять всё
- *
- * Команды автоматически удаляются из отображаемого текста.
  * ───────────────────────────────────────────────────────────────────────────
  */
 
-// ── Метки кнопок для базового гардероба ──────────────────────────────────────
+// ── Метки кнопок ─────────────────────────────────────────────────────────────
 const LABELS = {
     panties: '🩲 Трусики',
     bra:     '👙 Лифчик',
     short:   '🩳 Шорты',
+    shorts:  '🩳 Шорты',
     shirt:   '👕 Рубашка',
 };
 
-const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1).replace(/[-_]/g, ' ');
+const capitalize = s => s.charAt(0).toUpperCase() + s.slice(1).replace(/[_-]/g, ' ');
 
-// ── Паттерн команд: регистронезависимый ─────────────────────────────────────
-// Принимает [wear:X], [WEAR:X], [toggle:X], [TOGGLE:X] и т.д.
+// ── Категории ─────────────────────────────────────────────────────────────────
+// Используется как fallback если asset-scanner ещё не запустился
+const UNDERWEAR_NAMES = new Set(['bra', 'panties', 'panty', 'thong', 'stockings', 'socks', 'lingerie']);
+
+function getCategoryOf(name) {
+    // Сначала смотрим в asset-scanner если он есть
+    const cat = window.assetScanner?.categoryOf(name);
+    if (cat) return cat;
+    // Fallback по имени
+    if (UNDERWEAR_NAMES.has(name.toLowerCase())) return 'underwear';
+    if (name.toLowerCase().includes('costume') ||
+        name.toLowerCase().includes('uniform') ||
+        name.toLowerCase().includes('outfit'))  return 'costume';
+    return 'outerwear';
+}
+
+function getClothing() {
+    return window.stInteractive?.clothing ?? [];
+}
+
+// ── Слойная логика надевания ──────────────────────────────────────────────────
+
+/**
+ * Надеть предмет с учётом слоёв:
+ *   - Надеваем костюм → скрываем всю верхнюю одежду (outerwear)
+ *   - Надеваем верхнюю одежду → снимаем все костюмы
+ */
+function smartWear(name) {
+    const clothing = getClothing();
+    const item = clothing.find(c => c.name === name);
+    if (!item) {
+        console.warn(`[WardrobeAI] smartWear: предмет "${name}" не найден`);
+        return;
+    }
+
+    const category = getCategoryOf(name);
+
+    if (category === 'costume') {
+        // Скрыть всю верхнюю одежду (не бельё, не другие костюмы)
+        for (const c of clothing) {
+            if (getCategoryOf(c.name) === 'outerwear') c.visible = false;
+        }
+    } else if (category === 'outerwear') {
+        // Снять все надетые костюмы
+        for (const c of clothing) {
+            if (getCategoryOf(c.name) === 'costume' && c.visible) c.visible = false;
+        }
+    }
+
+    item.visible = true;
+    window.stInteractive?.renderVisibleLayers();
+}
+
+function smartRemove(name) {
+    const item = getClothing().find(c => c.name === name);
+    if (item) {
+        item.visible = false;
+        window.stInteractive?.renderVisibleLayers();
+    }
+}
+
+function smartToggle(name) {
+    const item = getClothing().find(c => c.name === name);
+    if (!item) return;
+    if (!item.visible) {
+        smartWear(name);
+    } else {
+        smartRemove(name);
+    }
+}
+
+// ── Паттерн команд ────────────────────────────────────────────────────────────
 const CMD_PATTERN = /\[(wear|remove|toggle|dressAll|undressAll)(?::([^\]]+))?\]/gi;
 
-// ── Системная инструкция для модели ─────────────────────────────────────────
-const SYSTEM_INSTRUCTION = `[WARDROBE SYSTEM — read carefully]
+// ── Системная инструкция ──────────────────────────────────────────────────────
+
+function buildSystemInstruction() {
+    return `[WARDROBE SYSTEM — read carefully]
 You control your character's visible clothing on a live puppet. You MUST use the commands below whenever clothing changes or is referenced.
 
 Commands (embed anywhere in your reply — they are invisible to the user):
-  [wear:<n>]      — put item on
-  [remove:<n>]    — take item off
-  [toggle:<n>]    — flip state
-  [dressAll]      — put all items on
-  [undressAll]    — remove all items
+  [wear:<name>]     — put item on (smart: wearing a costume hides outerwear; wearing outerwear removes costumes)
+  [remove:<name>]   — take item off
+  [toggle:<name>]   — flip state
+  [dressAll]        — put all items on
+  [undressAll]      — remove all items
+
+LAYER RULES (automatic, you don't need to handle manually):
+  • Wearing a COSTUME automatically hides all outerwear items.
+  • Wearing OUTERWEAR while a costume is on automatically removes the costume.
+  • Underwear is never affected by costume/outerwear logic.
 
 CRITICAL RULES:
-1. Treat the "Currently worn / Currently removed" list below as GROUND TRUTH. Do not invent or assume clothing state from conversation history.
-2. Always issue the appropriate command when clothing changes in your narration.
-3. Item names are case-sensitive and must match the list EXACTLY.
+1. Treat the state block below as GROUND TRUTH.
+2. Always issue a command when clothing changes in your narration.
+3. Item names are case-sensitive and must match EXACTLY.
 [/WARDROBE SYSTEM]`;
+}
 
 // ── Чтение состояния ─────────────────────────────────────────────────────────
 
 function getClothingState() {
-    return window.stInteractive?.clothing?.map(c => ({
-        name:    c.name,
-        visible: c.visible,
-    })) ?? [];
+    return getClothing().map(c => ({
+        name:     c.name,
+        visible:  c.visible,
+        category: getCategoryOf(c.name),
+    }));
 }
 
 function buildStateBlock() {
     const state = getClothingState();
-    if (!state.length) return SYSTEM_INSTRUCTION;
+    if (!state.length) return buildSystemInstruction();
 
     const worn    = state.filter(c =>  c.visible).map(c => c.name).join(', ') || '—';
     const removed = state.filter(c => !c.visible).map(c => c.name).join(', ') || '—';
-    const all     = state.map(c => c.name).join(', ');
+
+    // Группируем доступную одежду по категориям
+    const byCategory = { underwear: [], outerwear: [], costume: [] };
+    for (const c of state) byCategory[c.category]?.push(c.name);
+
+    const catalogBlock = window.assetScanner
+        ? window.assetScanner.buildCatalogBlock()
+        : [
+            `Underwear: ${byCategory.underwear.join(', ') || '—'}`,
+            `Outerwear: ${byCategory.outerwear.join(', ') || '—'}`,
+            `Costumes:  ${byCategory.costume.join(', ')  || '—'}`,
+          ].join('\n');
 
     return [
-        SYSTEM_INSTRUCTION,
+        buildSystemInstruction(),
         '',
-        `Available clothing (exact names): ${all}`,
-        `Currently worn:                   ${worn}`,
-        `Currently removed:                ${removed}`,
+        '── Clothing catalog ──',
+        catalogBlock,
+        '',
+        `Currently worn:    ${worn}`,
+        `Currently removed: ${removed}`,
     ].join('\n');
 }
 
@@ -85,21 +178,22 @@ function executeCommand(action, name) {
     const n   = name?.trim();
 
     switch (act) {
-        case 'wear':       window.wearClothing?.(n);   break;
-        case 'remove':     window.removeClothing?.(n); break;
-        case 'toggle':     window.toggleClothing?.(n); break;
-        case 'dressall':   window.dressAll?.();         break;
-        case 'undressall': window.undressAll?.();       break;
+        case 'wear':       smartWear(n);   break;
+        case 'remove':     smartRemove(n); break;
+        case 'toggle':     smartToggle(n); break;
+        case 'dressall':
+            getClothing().forEach(c => { c.visible = true; });
+            window.stInteractive?.renderVisibleLayers();
+            break;
+        case 'undressall':
+            getClothing().forEach(c => { c.visible = false; });
+            window.stInteractive?.renderVisibleLayers();
+            break;
         default:
             console.warn(`[WardrobeAI] Неизвестная команда: ${act}`);
     }
 }
 
-/**
- * Обрабатывает текст ответа: применяет все найденные команды и возвращает
- * очищенный текст без тегов команд.
- * Идемпотентен: повторный вызов на уже очищенном тексте ничего не меняет.
- */
 function processResponse(text) {
     if (!text) return text;
 
@@ -115,18 +209,55 @@ function processResponse(text) {
         syncWardrobeButtons();
     }
 
-    // Убираем лишние пробелы/переносы оставшиеся от удалённых тегов
     return cleaned.replace(/[ \t]{2,}/g, ' ').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // ── UI: панель гардероба ──────────────────────────────────────────────────────
 
-let _btnRow  = null;
-let _panelEl = null;
+// Секции по категориям: { category -> div }
+let _sections = {};
+let _panelEl  = null;
+
+const SECTION_META = {
+    underwear: { icon: '🩲', label: 'Бельё'          },
+    outerwear: { icon: '👕', label: 'Верхняя одежда' },
+    costume:   { icon: '🎭', label: 'Костюмы'        },
+};
+
+function getOrCreateSection(category) {
+    if (_sections[category]) return _sections[category];
+    if (!_panelEl) return null;
+
+    const meta = SECTION_META[category] ?? { icon: '👗', label: capitalize(category) };
+
+    const wrapper = document.createElement('div');
+    wrapper.id = `st-ward-section-${category}`;
+    wrapper.style.cssText = 'margin-top:6px;';
+
+    const label = document.createElement('div');
+    label.style.cssText = 'font-size:0.75em; opacity:0.55; margin-bottom:3px;';
+    label.textContent = `${meta.icon} ${meta.label}`;
+    wrapper.appendChild(label);
+
+    const row = document.createElement('div');
+    row.id = `st-ward-row-${category}`;
+    row.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px;';
+    wrapper.appendChild(row);
+
+    // Вставляем перед рядом действий (actionRow — последний элемент)
+    const actionRow = _panelEl.querySelector('#st-ward-action-row');
+    _panelEl.insertBefore(wrapper, actionRow ?? null);
+
+    _sections[category] = row;
+    return row;
+}
 
 function createWardrobeButton(item) {
-    // Не создавать дубликаты
     if (document.getElementById(`st-ward-btn-${item.name}`)) return null;
+
+    const category = getCategoryOf(item.name);
+    const row      = getOrCreateSection(category);
+    if (!row) return null;
 
     const btn = document.createElement('button');
     btn.id            = `st-ward-btn-${item.name}`;
@@ -135,18 +266,17 @@ function createWardrobeButton(item) {
     btn.textContent   = LABELS[item.name] ?? capitalize(item.name);
     btn.style.opacity = item.visible ? '1' : '0.35';
     btn.title         = item.visible ? 'Снять' : 'Надеть';
-    btn.addEventListener('click', () => window.toggleClothing?.(item.name));
+    btn.addEventListener('click', () => smartToggle(item.name) || syncWardrobeButtons());
 
-    if (_btnRow) _btnRow.appendChild(btn);
+    row.appendChild(btn);
     return btn;
 }
 
 function syncWardrobeButtons() {
-    for (const item of (window.stInteractive?.clothing ?? [])) {
+    for (const item of getClothing()) {
         const btn = document.getElementById(`st-ward-btn-${item.name}`);
         if (!btn) {
-            // Новый предмет появился в clothing — создать кнопку
-            if (_btnRow) createWardrobeButton(item);
+            createWardrobeButton(item);
             continue;
         }
         btn.style.opacity = item.visible ? '1' : '0.35';
@@ -157,10 +287,13 @@ function syncWardrobeButtons() {
 function showDebugState() {
     const state = getClothingState();
     if (!state.length) {
-        alert('[WardrobeAI] Гардероб пуст или stInteractive не инициализирован.');
+        alert('[WardrobeAI] Гардероб пуст.');
         return;
     }
-    const lines = state.map(c => `${c.visible ? '✅' : '❌'} ${c.name}`);
+    const catIcon = { underwear: '🩲', outerwear: '👕', costume: '🎭' };
+    const lines = state.map(c =>
+        `${c.visible ? '✅' : '❌'} ${catIcon[c.category] ?? '👗'} ${c.name} (${c.category})`
+    );
     const block = buildStateBlock();
     console.group('[WardrobeAI] Состояние гардероба');
     console.log(block);
@@ -181,25 +314,18 @@ function injectWardrobePanel() {
         const panel = document.createElement('div');
         panel.id = 'st-wardrobe-panel';
         panel.style.cssText = 'padding:6px 8px 8px; border-top:1px solid var(--SmartThemeBorderColor,#555)';
+        _panelEl = panel;
+        _sections = {};
 
         const title = document.createElement('div');
-        title.style.cssText = 'font-weight:600; margin-bottom:5px; font-size:0.82em; opacity:0.75; letter-spacing:.03em';
+        title.style.cssText = 'font-weight:600; margin-bottom:4px; font-size:0.82em; opacity:0.75; letter-spacing:.03em';
         title.textContent = '👗 Гардероб';
         panel.appendChild(title);
 
-        _btnRow = document.createElement('div');
-        _btnRow.id = 'st-wardrobe-btnrow';
-        _btnRow.style.cssText = 'display:flex; flex-wrap:wrap; gap:4px;';
-        panel.appendChild(_btnRow);
-
-        // Создать кнопки для всей текущей одежды
-        for (const item of (window.stInteractive?.clothing ?? [])) {
-            createWardrobeButton(item);
-        }
-
-        // Ряд действий: одеть всё / снять всё / дебаг
+        // Ряд действий — добавляем первым, секции будут вставляться перед ним
         const actionRow = document.createElement('div');
-        actionRow.style.cssText = 'display:flex; gap:4px; margin-top:5px; flex-wrap:wrap;';
+        actionRow.id = 'st-ward-action-row';
+        actionRow.style.cssText = 'display:flex; gap:4px; margin-top:7px; flex-wrap:wrap;';
 
         const makeBtn = (text, onClick, extraStyle = '') => {
             const b = document.createElement('button');
@@ -210,29 +336,29 @@ function injectWardrobePanel() {
             return b;
         };
 
-        actionRow.appendChild(makeBtn('✅ Одеть всё',  () => window.dressAll?.()));
-        actionRow.appendChild(makeBtn('❌ Снять всё', () => window.undressAll?.()));
+        actionRow.appendChild(makeBtn('✅ Одеть всё',  () => { executeCommand('dressall');   syncWardrobeButtons(); }));
+        actionRow.appendChild(makeBtn('❌ Снять всё', () => { executeCommand('undressall'); syncWardrobeButtons(); }));
         actionRow.appendChild(makeBtn('🔍 Дебаг',     () => showDebugState(), 'flex:0; opacity:0.6;'));
         panel.appendChild(actionRow);
 
+        // Создать кнопки для уже загруженной одежды
+        for (const item of getClothing()) {
+            createWardrobeButton(item);
+        }
+
         extMenu.appendChild(panel);
-        _panelEl = panel;
     }, 600);
 }
 
-// ── Перехват глобального API для синхронизации кнопок ────────────────────────
+// ── Перехват глобального API ──────────────────────────────────────────────────
 
 function wrapGlobalAPI() {
-    const wrap = (fn) => (...args) => {
-        fn?.(...args);
-        syncWardrobeButtons();
-    };
-
-    window.wearClothing   = wrap(window.wearClothing);
-    window.removeClothing = wrap(window.removeClothing);
-    window.toggleClothing = wrap(window.toggleClothing);
-    window.dressAll       = wrap(window.dressAll);
-    window.undressAll     = wrap(window.undressAll);
+    // Оборачиваем оригинальные функции из script.js, добавляем слойную логику
+    window.wearClothing   = (name) => { smartWear(name);   syncWardrobeButtons(); };
+    window.removeClothing = (name) => { smartRemove(name); syncWardrobeButtons(); };
+    window.toggleClothing = (name) => { smartToggle(name); syncWardrobeButtons(); };
+    window.dressAll       = ()     => { executeCommand('dressall');   syncWardrobeButtons(); };
+    window.undressAll     = ()     => { executeCommand('undressall'); syncWardrobeButtons(); };
 }
 
 // ── Инъекция состояния в промпт ───────────────────────────────────────────────
@@ -240,28 +366,22 @@ function wrapGlobalAPI() {
 function injectStateIntoPrompt(promptData) {
     const block = buildStateBlock();
 
-    // Chat Completion API: массив prompts[]
     if (Array.isArray(promptData?.prompts)) {
         const sys = promptData.prompts.find(p => p.role === 'system');
         if (sys) { sys.content += '\n\n' + block; return; }
         promptData.prompts.unshift({ role: 'system', content: block });
         return;
     }
-
-    // Text Completion / Legacy: строка systemPrompt
     if (typeof promptData?.systemPrompt === 'string') {
         promptData.systemPrompt += '\n\n' + block;
         return;
     }
-
-    // Fallback: любое строковое поле верхнего уровня
     for (const key of ['system', 'prompt', 'instruction']) {
         if (typeof promptData?.[key] === 'string') {
             promptData[key] += '\n\n' + block;
             return;
         }
     }
-
     console.warn('[WardrobeAI] Не удалось найти поле для инъекции:', Object.keys(promptData ?? {}));
 }
 
@@ -275,24 +395,17 @@ class WardrobeAI {
 
     _waitForST() {
         const ctx = window.SillyTavern?.getContext();
-        if (
-            !ctx?.eventSource ||
-            !ctx?.event_types ||
-            !window.stInteractive ||
-            !window.wearClothing  // ждём пока script.js выставит глобальный API
-        ) {
+        if (!ctx?.eventSource || !ctx?.event_types || !window.stInteractive || !window.wearClothing) {
             setTimeout(() => this._waitForST(), 500);
             return;
         }
         this._hookEvents(ctx);
-        wrapGlobalAPI();
+        wrapGlobalAPI();       // заменяем window.wearClothing и т.д. на умные версии
         injectWardrobePanel();
         console.log('✅ [WardrobeAI] Инициализирован');
     }
 
     _hookEvents({ eventSource, event_types }) {
-        // ── Инъекция состояния перед генерацией ──────────────────────────────
-        // Пробуем все известные события — хотя бы одно сработает
         const PRE_EVENTS = [
             'GENERATE_BEFORE_COMBINE_PROMPTS',
             'CHAT_COMPLETION_PROMPT_READY',
@@ -308,10 +421,9 @@ class WardrobeAI {
             }
         }
         if (!injectionHooked) {
-            console.warn('[WardrobeAI] Не найдено ни одного события для инъекции. Доступные event_types:', Object.keys(event_types));
+            console.warn('[WardrobeAI] Нет событий инъекции. Доступные:', Object.keys(event_types));
         }
 
-        // ── Парсинг ответа: до сохранения в chat[] ───────────────────────────
         if (event_types.MESSAGE_RECEIVED) {
             eventSource.on(event_types.MESSAGE_RECEIVED, (data) => {
                 if (data?.mes) data.mes = processResponse(data.mes);
@@ -319,17 +431,13 @@ class WardrobeAI {
             console.log('[WardrobeAI] Хук парсинга: MESSAGE_RECEIVED');
         }
 
-        // ── Финальная зачистка: после рендера (страховка) ────────────────────
-        // Если MESSAGE_RECEIVED не убрал теги — убираем здесь
         if (event_types.CHARACTER_MESSAGE_RENDERED) {
             eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (msgId) => {
                 const chat = window.SillyTavern.getContext().chat;
                 const msg  = chat?.[msgId];
                 if (!msg || msg.is_user) return;
-
                 const cleaned = processResponse(msg.mes);
                 if (cleaned === msg.mes) return;
-
                 msg.mes = cleaned;
                 const el = document.querySelector(`[mesid="${msgId}"] .mes_text`);
                 if (el) el.innerHTML = cleaned;
@@ -342,35 +450,24 @@ class WardrobeAI {
 
     // ── Публичное API ─────────────────────────────────────────────────────────
 
-    getState() { return getClothingState(); }
+    getState()             { return getClothingState(); }
+    exec(action, name)     { executeCommand(action, name); syncWardrobeButtons(); }
+    syncButtons()          { syncWardrobeButtons(); }
 
-    exec(action, name) { executeCommand(action, name); }
-
-    /**
-     * Зарегистрировать новый предмет одежды.
-     * Вызывается из script.js после загрузки кастомной одежды через настройки.
-     */
     registerClothingItem(item) {
         if (document.getElementById(`st-ward-btn-${item.name}`)) return;
         createWardrobeButton(item);
     }
 
-    /** Принудительно пересинхронизировать кнопки с текущим состоянием */
-    syncButtons() { syncWardrobeButtons(); }
-
     fuzzyFind(query) {
         if (!query) return null;
         const state = getClothingState();
         const q = query.toLowerCase().replace(/[_\-\s]+/g, '');
-
         const exact = state.find(c => c.name.toLowerCase() === q);
         if (exact) return exact.name;
-
         const sub = state.find(c =>
-            c.name.toLowerCase().includes(q) || q.includes(c.name.toLowerCase())
-        );
+            c.name.toLowerCase().includes(q) || q.includes(c.name.toLowerCase()));
         if (sub) return sub.name;
-
         let best = null, bestDist = Infinity;
         for (const c of state) {
             const d = levenshtein(c.name.toLowerCase(), q);
@@ -396,6 +493,4 @@ function levenshtein(a, b) {
 
 export const wardrobeAI = new WardrobeAI();
 export default wardrobeAI;
-
-// Делаем доступным глобально, чтобы script.js мог вызывать registerClothingItem
 window.wardrobeAI = wardrobeAI;
