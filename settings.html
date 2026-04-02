@@ -1,95 +1,270 @@
-<div class="inline-drawer">
-    <div class="inline-drawer-toggle inline-drawer-header">
-        <b>ST Interactive Chat</b>
-        <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+<div class="st-interact-settings">
+    <h4>Настройки интерактивной куклы</h4>
+
+    <div class="inline-icons">
+        <label>Включить оверлей</label>
+        <input type="checkbox" id="st-interact-active">
     </div>
-    <div class="inline-drawer-content">
-        <div class="st-interact-settings">
 
-            <div class="inline-icons">
-                <label>Включить оверлей</label>
-                <input type="checkbox" id="st-interact-active">
-            </div>
+    <hr>
 
-            <hr>
-
-            <div class="margin-top-10">
-                <label>Базовое изображение (body):</label>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="st-interact-base-path" class="text_box" placeholder="girl.png">
-                    <button id="st-interact-pick-base" class="menu_button" title="Выбрать файл">📂</button>
-                    <input type="file" id="st-interact-file-base" style="display:none" accept="image/png">
-                </div>
-            </div>
-
-            <div class="margin-top-10">
-                <label>Карта кликов (map):</label>
-                <div style="display:flex; gap:5px;">
-                    <input type="text" id="st-interact-map-path" class="text_box" placeholder="map.png">
-                    <button id="st-interact-pick-map" class="menu_button" title="Выбрать файл">📂</button>
-                    <input type="file" id="st-interact-file-map" style="display:none" accept="image/png">
-                </div>
-            </div>
-
-            <hr>
-
-            <!-- ── Position & scale controls ──────────────────────────── -->
-            <div class="margin-top-10">
-                <label style="display:flex; justify-content:space-between;">
-                    <span>↔ Позиция X (лево → право)</span>
-                    <span id="st-interact-pos-x-val" style="font-variant-numeric:tabular-nums; min-width:3ch; text-align:right;">0%</span>
-                </label>
-                <input
-                    type="range"
-                    id="st-interact-pos-x"
-                    min="0" max="100" step="1" value="0"
-                    style="width:100%; margin-top:4px;"
-                >
-            </div>
-
-            <div class="margin-top-10">
-                <label style="display:flex; justify-content:space-between;">
-                    <span>↕ Позиция Y (низ → верх)</span>
-                    <span id="st-interact-pos-y-val" style="font-variant-numeric:tabular-nums; min-width:3ch; text-align:right;">0%</span>
-                </label>
-                <input
-                    type="range"
-                    id="st-interact-pos-y"
-                    min="0" max="100" step="1" value="0"
-                    style="width:100%; margin-top:4px;"
-                >
-            </div>
-
-            <div class="margin-top-10">
-                <label style="display:flex; justify-content:space-between;">
-                    <span>🔎 Размер персонажа</span>
-                    <span id="st-interact-scale-val" style="font-variant-numeric:tabular-nums; min-width:3ch; text-align:right;">45%</span>
-                </label>
-                <input
-                    type="range"
-                    id="st-interact-scale"
-                    min="10" max="100" step="1" value="45"
-                    style="width:100%; margin-top:4px;"
-                >
-            </div>
-
-            <hr>
-
-            <div class="margin-top-10">
-                <label>Гардероб (слои одежды):</label>
-                <textarea id="st-interact-wardrobe-cfg" class="text_box" rows="3"
-                    placeholder="bra:bra.png, shirt:shirt.png"></textarea>
-                <button id="st-interact-pick-wardrobe" class="menu_button margin-top-10" style="width:100%;">
-                    ➕ Добавить файлы в гардероб
-                </button>
-                <input type="file" id="st-interact-file-wardrobe" style="display:none" accept="image/png" multiple>
-            </div>
-
-            <p class="note" style="font-size:0.8em; margin-top:10px; opacity:0.8;">
-                * Файлы должны находиться в папке <code>assets</code> расширения.<br>
-                * Изменения позиции и размера применяются немедленно и сохраняются автоматически.
-            </p>
-
+    <!-- ── Базовые изображения ─────────────────────────────────────────── -->
+    <div class="margin-top-10">
+        <label title="Основное изображение персонажа (база без одежды)">
+            Путь к базе:
+        </label>
+        <div style="display:flex; gap:6px; align-items:center;">
+            <input type="text" id="st-interact-base-path" class="text_box"
+                   placeholder="assets/base.png" style="flex:1">
+            <button id="st-interact-pick-base" class="menu_button" style="white-space:nowrap">
+                📁 Выбрать
+            </button>
+            <input type="file" id="st-interact-file-base" accept=".png,.jpg,.webp"
+                   style="display:none">
         </div>
     </div>
+
+    <div class="margin-top-10">
+        <label title="Цветная карта зон для определения кликов">
+            Путь к карте зон:
+        </label>
+        <div style="display:flex; gap:6px; align-items:center;">
+            <input type="text" id="st-interact-map-path" class="text_box"
+                   placeholder="assets/map.png" style="flex:1">
+            <button id="st-interact-pick-map" class="menu_button" style="white-space:nowrap">
+                📁 Выбрать
+            </button>
+            <input type="file" id="st-interact-file-map" accept=".png"
+                   style="display:none">
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- ── Слайдеры позиции и масштаба ────────────────────────────────── -->
+    <div class="margin-top-10" style="display:flex; flex-direction:column; gap:6px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+            <label style="min-width:90px">Масштаб:</label>
+            <input type="range" id="st-interact-scale" min="10" max="100" step="1"
+                   style="flex:1">
+            <span id="st-interact-scale-val" style="min-width:38px; text-align:right">45%</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <label style="min-width:90px">Позиция X:</label>
+            <input type="range" id="st-interact-pos-x" min="0" max="100" step="1"
+                   style="flex:1">
+            <span id="st-interact-pos-x-val" style="min-width:38px; text-align:right">0%</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:8px;">
+            <label style="min-width:90px">Позиция Y:</label>
+            <input type="range" id="st-interact-pos-y" min="0" max="100" step="1"
+                   style="flex:1">
+            <span id="st-interact-pos-y-val" style="min-width:38px; text-align:right">0%</span>
+        </div>
+    </div>
+
+    <hr>
+
+    <!-- ── Гардероб ───────────────────────────────────────────────────── -->
+    <h5 style="margin-bottom:4px">
+        👗 Гардероб
+        <span id="st-wardrobe-scan-status"
+              style="font-size:0.75em; opacity:0.55; font-weight:normal; margin-left:8px"></span>
+    </h5>
+    <p class="note" style="margin-top:0">
+        Файлы автоматически категоризируются по имени. Категорию можно задать вручную через секции ниже.
+    </p>
+
+    <!-- Кнопка автосканирования -->
+    <div class="margin-top-10">
+        <button id="st-interact-scan-assets" class="menu_button" style="width:100%">
+            🔍 Сканировать папку assets/ автоматически
+        </button>
+    </div>
+
+    <!-- ─── Секция 1: Бельё ──────────────────────────────────────────── -->
+    <div class="margin-top-10 st-wardrobe-section">
+        <div class="st-section-header">
+            <span>🩲 Бельё <small>(underwear)</small></span>
+            <button class="st-help-btn menu_button"
+                    data-help="Именование файлов для автоматического определения в категорию «Бельё»:&#10;&#10;✅ bra.png&#10;✅ panties.png&#10;✅ thong.png&#10;✅ stockings.png&#10;✅ socks.png&#10;✅ lingerie.png&#10;&#10;Бельё никогда не снимается автоматически при смене костюма или верхней одежды."
+                    title="Справка по именованию">?</button>
+        </div>
+        <p class="note">Базовый слой. Не снимается автоматически при смене одежды.</p>
+        <div style="display:flex; gap:6px; align-items:flex-start;">
+            <textarea id="st-interact-wardrobe-underwear"
+                      class="text_box"
+                      placeholder="bra:assets/bra.png, panties:assets/panties.png"
+                      rows="2"
+                      style="flex:1; resize:vertical"></textarea>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <button id="st-interact-pick-underwear" class="menu_button" title="Выбрать файлы">📁</button>
+                <input type="file" id="st-interact-file-underwear" accept=".png" multiple style="display:none">
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Секция 2: Верхняя одежда ────────────────────────────────── -->
+    <div class="margin-top-10 st-wardrobe-section">
+        <div class="st-section-header">
+            <span>👕 Верхняя одежда <small>(outerwear)</small></span>
+            <button class="st-help-btn menu_button"
+                    data-help="Именование файлов для категории «Верхняя одежда»:&#10;&#10;✅ shirt.png&#10;✅ shorts.png&#10;✅ pants.png&#10;✅ skirt.png&#10;✅ jacket.png&#10;✅ blouse.png&#10;&#10;При надевании верхней одежды, если в этот момент надет костюм — костюм снимается автоматически."
+                    title="Справка по именованию">?</button>
+        </div>
+        <p class="note">Средний слой. При надевании автоматически снимает активный костюм.</p>
+        <div style="display:flex; gap:6px; align-items:flex-start;">
+            <textarea id="st-interact-wardrobe-outerwear"
+                      class="text_box"
+                      placeholder="shirt:assets/shirt.png, shorts:assets/shorts.png"
+                      rows="2"
+                      style="flex:1; resize:vertical"></textarea>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <button id="st-interact-pick-outerwear" class="menu_button" title="Выбрать файлы">📁</button>
+                <input type="file" id="st-interact-file-outerwear" accept=".png" multiple style="display:none">
+            </div>
+        </div>
+    </div>
+
+    <!-- ─── Секция 3: Костюмы ────────────────────────────────────────── -->
+    <div class="margin-top-10 st-wardrobe-section">
+        <div class="st-section-header">
+            <span>🎭 Костюмы <small>(costumes)</small></span>
+            <button class="st-help-btn menu_button"
+                    data-help="Именование файлов для категории «Костюмы»:&#10;&#10;✅ maid_costume.png&#10;✅ nurse_costume.png&#10;✅ school_uniform.png&#10;✅ bunny_suit.png&#10;✅ swimsuit_outfit.png&#10;&#10;Суффиксы для автоопределения: _costume, _outfit, _uniform, _suit&#10;&#10;При надевании костюма вся верхняя одежда (outerwear) скрывается автоматически. ИИ получает команду [wear:maid_costume]."
+                    title="Справка по именованию">?</button>
+        </div>
+        <p class="note">Спецслой. При надевании скрывает всю верхнюю одежду.</p>
+        <div style="display:flex; gap:6px; align-items:flex-start;">
+            <textarea id="st-interact-wardrobe-costumes"
+                      class="text_box"
+                      placeholder="maid_costume:assets/maid_costume.png"
+                      rows="2"
+                      style="flex:1; resize:vertical"></textarea>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <button id="st-interact-pick-costumes" class="menu_button" title="Выбрать файлы">📁</button>
+                <input type="file" id="st-interact-file-costumes" accept=".png" multiple style="display:none">
+            </div>
+        </div>
+    </div>
+
+    <!-- Скрытый legacy textarea для wardrobeString (обратная совместимость) -->
+    <textarea id="st-interact-wardrobe-cfg" style="display:none"></textarea>
+
+    <!-- ── Подсветка зон ────────────────────────────────────────────── -->
+    <hr>
+    <h5 style="margin-bottom:4px">✨ Подсветка зон</h5>
+    <div style="display:flex; gap:6px; align-items:center; margin-top:6px;">
+        <label style="min-width:70px">Стиль:</label>
+        <select id="st-interact-highlight-style" class="text_box" style="flex:1">
+            <option value="neon">Неон (свечение)</option>
+            <option value="ghost">Призрак (заливка)</option>
+            <option value="ants">Муравьи (контур)</option>
+            <option value="none">Отключить</option>
+        </select>
+    </div>
 </div>
+
+<style>
+.st-wardrobe-section {
+    border: 1px solid var(--SmartThemeBorderColor, #444);
+    border-radius: 6px;
+    padding: 8px 10px;
+}
+.st-section-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 4px;
+    font-weight: 600;
+    font-size: 0.85em;
+}
+.st-help-btn {
+    padding: 0 7px !important;
+    font-size: 0.8em !important;
+    opacity: 0.6;
+    min-width: 22px;
+    line-height: 1.6;
+}
+.st-help-btn:hover { opacity: 1; }
+</style>
+
+<script>
+// ── Кнопки "?" — показ подсказки ──────────────────────────────────────────────
+document.querySelectorAll('.st-help-btn').forEach(btn => {
+    btn.addEventListener('click', () => alert(btn.dataset.help));
+});
+
+// ── Кнопки выбора файлов для каждой секции ───────────────────────────────────
+[
+    ['st-interact-pick-underwear', 'st-interact-file-underwear', 'st-interact-wardrobe-underwear'],
+    ['st-interact-pick-outerwear', 'st-interact-file-outerwear', 'st-interact-wardrobe-outerwear'],
+    ['st-interact-pick-costumes',  'st-interact-file-costumes',  'st-interact-wardrobe-costumes'],
+].forEach(([btnId, fileId, textareaId]) => {
+    const btn  = document.getElementById(btnId);
+    const file = document.getElementById(fileId);
+    const ta   = document.getElementById(textareaId);
+    if (!btn || !file || !ta) return;
+
+    btn.addEventListener('click', () => file.click());
+    file.addEventListener('change', e => {
+        const newItems = Array.from(e.target.files)
+            .map(f => `${f.name.replace(/\.[^.]+$/, '')}:${f.name}`)
+            .join(', ');
+        ta.value = ta.value ? `${ta.value}, ${newItems}` : newItems;
+        ta.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+});
+
+// ── Кнопка автосканирования ───────────────────────────────────────────────────
+document.getElementById('st-interact-scan-assets')?.addEventListener('click', async () => {
+    const status = document.getElementById('st-wardrobe-scan-status');
+    if (status) status.textContent = '⏳ Сканирование...';
+
+    if (!window.assetScanner) {
+        alert('AssetScanner не инициализирован. Убедитесь что расширение загружено.');
+        if (status) status.textContent = '❌ Ошибка';
+        return;
+    }
+
+    try {
+        const catalog = await window.assetScanner.scan();
+        const total   = catalog.underwear.length + catalog.outerwear.length + catalog.costume.length;
+        if (status) status.textContent = `✅ Найдено: ${total} предметов`;
+
+        // Заполняем textarea найденными предметами
+        const fill = (id, items) => {
+            const ta = document.getElementById(id);
+            if (!ta || !items.length) return;
+            const existing = new Set(ta.value.split(',').map(s => s.trim().split(':')[0].trim()).filter(Boolean));
+            const newEntries = items
+                .filter(i => !existing.has(i.name))
+                .map(i => `${i.name}:${i.file}`);
+            if (newEntries.length) {
+                ta.value = ta.value
+                    ? `${ta.value}, ${newEntries.join(', ')}`
+                    : newEntries.join(', ');
+                ta.dispatchEvent(new Event('input', { bubbles: true }));
+            }
+        };
+
+        fill('st-interact-wardrobe-underwear', catalog.underwear);
+        fill('st-interact-wardrobe-outerwear', catalog.outerwear);
+        fill('st-interact-wardrobe-costumes',  catalog.costume);
+
+    } catch (e) {
+        console.error('[Settings] Ошибка сканирования:', e);
+        if (status) status.textContent = '❌ Ошибка';
+    }
+});
+
+// ── Стиль подсветки ───────────────────────────────────────────────────────────
+document.getElementById('st-interact-highlight-style')?.addEventListener('change', e => {
+    const val = e.target.value;
+    if (val === 'none') {
+        window._zoneHighlighter?.destroy?.();
+    } else {
+        window._zoneHighlighter?.setStyle(val);
+    }
+});
+</script>
