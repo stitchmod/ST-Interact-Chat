@@ -4,152 +4,180 @@
         <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
     </div>
     <div class="inline-drawer-content">
+
         <div class="st-interact-settings">
-            <div class="inline-icons">
-                <label>Включить манекен</label>
+
+            <!-- ── Включить/выключить ──────────────────────────────────── -->
+            <div class="inline-icons margin-top-10">
+                <label>Включить оверлей</label>
                 <input type="checkbox" id="st-interact-active">
             </div>
 
             <hr>
 
+            <!-- ── Базовые изображения ───────────────────────────────── -->
             <div class="margin-top-10">
-                <label title="Основное изображение персонажа (база без одежды)">Путь к базе:</label>
-                <div style="display:flex; gap:6px; align-items:center;">
-                    <input type="text" id="st-interact-base-path" class="text_box" placeholder="assets/base.png" style="flex:1">
-                    <button id="st-interact-pick-base" class="menu_button">📁</button>
-                    <input type="file" id="st-interact-file-base" accept=".png,.jpg,.webp" style="display:none">
+                <label title="Основное изображение персонажа без одежды">
+                    Базовое изображение:
+                </label>
+                <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
+                    <input type="text" id="st-interact-base-path" class="text_box"
+                           placeholder="assets/base.png" style="flex:1">
+                    <button id="st-interact-pick-base" class="menu_button" style="white-space:nowrap">
+                        📁 Файл
+                    </button>
+                    <input type="file" id="st-interact-file-base" accept=".png,.jpg,.webp"
+                           style="display:none">
                 </div>
             </div>
 
             <div class="margin-top-10">
-                <label title="Цветная карта зон для определения кликов">Путь к карте зон:</label>
-                <div style="display:flex; gap:6px; align-items:center;">
-                    <input type="text" id="st-interact-map-path" class="text_box" placeholder="assets/map.png" style="flex:1">
-                    <button id="st-interact-pick-map" class="menu_button">📁</button>
-                    <input type="file" id="st-interact-file-map" accept=".png" style="display:none">
+                <label title="Цветная карта зон — каждый цвет = зона тела">
+                    Карта зон:
+                </label>
+                <div style="display:flex; gap:6px; align-items:center; margin-top:4px;">
+                    <input type="text" id="st-interact-map-path" class="text_box"
+                           placeholder="assets/map.png" style="flex:1">
+                    <button id="st-interact-pick-map" class="menu_button" style="white-space:nowrap">
+                        📁 Файл
+                    </button>
+                    <input type="file" id="st-interact-file-map" accept=".png"
+                           style="display:none">
                 </div>
             </div>
 
             <hr>
 
-            <div class="margin-top-10" style="display:flex; flex-direction:column; gap:8px;">
+            <!-- ── Позиция и масштаб ─────────────────────────────────── -->
+            <div class="margin-top-10" style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label style="min-width:90px">Масштаб:</label>
-                    <input type="range" id="st-interact-scale" min="10" max="100" step="1">
-                    <span id="st-interact-scale-val" style="min-width:35px">45%</span>
+                    <input type="range" id="st-interact-scale" min="10" max="100" step="1" style="flex:1">
+                    <span id="st-interact-scale-val" style="min-width:38px; text-align:right">45%</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label style="min-width:90px">Позиция X:</label>
-                    <input type="range" id="st-interact-pos-x" min="0" max="100" step="1">
-                    <span id="st-interact-pos-x-val" style="min-width:35px">0%</span>
+                    <input type="range" id="st-interact-pos-x" min="0" max="100" step="1" style="flex:1">
+                    <span id="st-interact-pos-x-val" style="min-width:38px; text-align:right">0%</span>
                 </div>
                 <div style="display:flex; align-items:center; gap:8px;">
                     <label style="min-width:90px">Позиция Y:</label>
-                    <input type="range" id="st-interact-pos-y" min="0" max="100" step="1">
-                    <span id="st-interact-pos-y-val" style="min-width:35px">0%</span>
+                    <input type="range" id="st-interact-pos-y" min="0" max="100" step="1" style="flex:1">
+                    <span id="st-interact-pos-y-val" style="min-width:38px; text-align:right">0%</span>
                 </div>
             </div>
 
             <hr>
 
-            <h5>👗 Гардероб <span id="st-wardrobe-scan-status" style="font-size:0.8em; opacity:0.6"></span></h5>
-            
-            <button id="st-interact-scan-assets" class="menu_button" style="width:100%; margin-bottom:10px;">
-                🔍 Автосканирование папки assets/
-            </button>
+            <!-- ── Гардероб ──────────────────────────────────────────── -->
+            <h5 style="margin-bottom:4px">
+                👗 Гардероб
+                <span id="st-wardrobe-scan-status"
+                      style="font-size:0.75em; opacity:0.55; font-weight:normal; margin-left:8px"></span>
+            </h5>
 
-            <div class="st-wardrobe-grid">
-                <div class="st-wardrobe-section">
-                    <div class="st-section-header">🩲 Бельё <button class="st-help-btn" data-help="bra, panties, stockings...">?</button></div>
-                    <textarea id="st-interact-wardrobe-underwear" class="text_box" rows="2"></textarea>
+            <div class="margin-top-6">
+                <button id="st-interact-scan-assets" class="menu_button" style="width:100%">
+                    🔍 Сканировать папку assets/ автоматически
+                </button>
+            </div>
+
+            <!-- Секция: Бельё -->
+            <div class="margin-top-10 st-wardrobe-section">
+                <div class="st-section-header">
+                    <span>🩲 Бельё <small style="opacity:0.6">(underwear)</small></span>
+                    <button class="st-help-btn menu_button" id="st-help-underwear">?</button>
                 </div>
-
-                <div class="st-wardrobe-section">
-                    <div class="st-section-header">👕 Одежда <button class="st-help-btn" data-help="shirt, skirt, pants...">?</button></div>
-                    <textarea id="st-interact-wardrobe-outerwear" class="text_box" rows="2"></textarea>
-                </div>
-
-                <div class="st-wardrobe-section">
-                    <div class="st-section-header">🎭 Костюмы <button class="st-help-btn" data-help="_costume, _uniform...">?</button></div>
-                    <textarea id="st-interact-wardrobe-costumes" class="text_box" rows="2"></textarea>
+                <p class="note" style="margin:2px 0 5px">
+                    Базовый слой. Никогда не снимается автоматически.
+                </p>
+                <div style="display:flex; gap:6px; align-items:flex-start;">
+                    <textarea id="st-interact-wardrobe-underwear" class="text_box"
+                              placeholder="bra:assets/bra.png, panties:assets/panties.png"
+                              rows="2" style="flex:1; resize:vertical"></textarea>
+                    <button id="st-interact-pick-underwear" class="menu_button" title="Выбрать файлы">📁</button>
+                    <input type="file" id="st-interact-file-underwear" accept=".png" multiple style="display:none">
                 </div>
             </div>
 
+            <!-- Секция: Верхняя одежда -->
+            <div class="margin-top-10 st-wardrobe-section">
+                <div class="st-section-header">
+                    <span>👕 Верхняя одежда <small style="opacity:0.6">(outerwear)</small></span>
+                    <button class="st-help-btn menu_button" id="st-help-outerwear">?</button>
+                </div>
+                <p class="note" style="margin:2px 0 5px">
+                    Средний слой. При надевании снимает активный костюм.
+                </p>
+                <div style="display:flex; gap:6px; align-items:flex-start;">
+                    <textarea id="st-interact-wardrobe-outerwear" class="text_box"
+                              placeholder="shirt:assets/shirt.png, shorts:assets/shorts.png"
+                              rows="2" style="flex:1; resize:vertical"></textarea>
+                    <button id="st-interact-pick-outerwear" class="menu_button" title="Выбрать файлы">📁</button>
+                    <input type="file" id="st-interact-file-outerwear" accept=".png" multiple style="display:none">
+                </div>
+            </div>
+
+            <!-- Секция: Костюмы -->
+            <div class="margin-top-10 st-wardrobe-section">
+                <div class="st-section-header">
+                    <span>🎭 Костюмы <small style="opacity:0.6">(costumes)</small></span>
+                    <button class="st-help-btn menu_button" id="st-help-costumes">?</button>
+                </div>
+                <p class="note" style="margin:2px 0 5px">
+                    Спецслой. При надевании скрывает всю верхнюю одежду.
+                </p>
+                <div style="display:flex; gap:6px; align-items:flex-start;">
+                    <textarea id="st-interact-wardrobe-costumes" class="text_box"
+                              placeholder="maid_costume:assets/maid_costume.png"
+                              rows="2" style="flex:1; resize:vertical"></textarea>
+                    <button id="st-interact-pick-costumes" class="menu_button" title="Выбрать файлы">📁</button>
+                    <input type="file" id="st-interact-file-costumes" accept=".png" multiple style="display:none">
+                </div>
+            </div>
+
+            <!-- legacy скрытый textarea — обратная совместимость -->
+            <textarea id="st-interact-wardrobe-cfg" style="display:none"></textarea>
+
             <hr>
-            <h5>✨ Подсветка</h5>
-            <select id="st-interact-highlight-style" class="text_box" style="width:100%">
-                <option value="neon">Неон</option>
-                <option value="ghost">Призрак</option>
-                <option value="none">Отключить</option>
-            </select>
-        </div>
-    </div>
-</div>
 
-<style>
-    .st-interact-settings { padding: 10px; }
-    .st-wardrobe-grid { display: flex; flex-direction: column; gap: 10px; }
-    .st-wardrobe-section { border: 1px solid var(--SmartThemeBorderColor); padding: 5px; border-radius: 5px; }
-    .st-section-header { display: flex; justify-content: space-between; font-size: 0.9em; margin-bottom: 5px; }
-    .st-help-btn { border: none; background: none; cursor: pointer; opacity: 0.5; }
-    .st-help-btn:hover { opacity: 1; }
-</style>
+            <!-- ── Подсветка зон ─────────────────────────────────────── -->
+            <div class="margin-top-6" style="display:flex; gap:8px; align-items:center;">
+                <label style="min-width:100px">✨ Подсветка:</label>
+                <select id="st-interact-highlight-style" class="text_box" style="flex:1">
+                    <option value="neon">Неон (свечение)</option>
+                    <option value="ghost">Призрак (заливка)</option>
+                    <option value="ants">Муравьи (контур)</option>
+                    <option value="none">Отключить</option>
+                </select>
+            </div>
 
-<script>
-(function() {
-    // 1. Оживляем слайдеры (визуальное обновление + применение)
-    const sliders = [
-        { id: 'st-interact-scale', valId: 'st-interact-scale-val', suffix: '%' },
-        { id: 'st-interact-pos-x', valId: 'st-interact-pos-x-val', suffix: '%' },
-        { id: 'st-interact-pos-y', valId: 'st-interact-pos-y-val', suffix: '%' }
-    ];
+        </div><!-- /.st-interact-settings -->
 
-    sliders.forEach(s => {
-        const input = document.getElementById(s.id);
-        const span = document.getElementById(s.valId);
-        if (!input || !span) return;
-
-        input.addEventListener('input', () => {
-            span.textContent = input.value + s.suffix;
-            // Вызываем обновление в самом менеджере, если он готов
-            if (window.stInteractive) {
-                const config = {
-                    scale: document.getElementById('st-interact-scale').value / 100,
-                    x: document.getElementById('st-interact-pos-x').value / 100,
-                    y: document.getElementById('st-interact-pos-y').value / 100
-                };
-                window.stInteractive.updateConfig?.(config);
-            }
-        });
-    });
-
-    // 2. Подсказки "?"
-    document.querySelectorAll('.st-help-btn').forEach(btn => {
-        btn.addEventListener('click', () => alert(btn.dataset.help));
-    });
-
-    // 3. Логика сканирования ассетов
-    document.getElementById('st-interact-scan-assets')?.addEventListener('click', async () => {
-        const status = document.getElementById('st-wardrobe-scan-status');
-        if (!window.assetScanner) return alert('Ошибка: AssetScanner не найден в window');
-        
-        status.textContent = '⏳...';
-        try {
-            const catalog = await window.assetScanner.scan();
-            status.textContent = '✅';
-            
-            const updateTa = (id, list) => {
-                const ta = document.getElementById(id);
-                if (ta) ta.value = list.map(i => `${i.name}:${i.file}`).join(', ');
-            };
-
-            updateTa('st-interact-wardrobe-underwear', catalog.underwear);
-            updateTa('st-interact-wardrobe-outerwear', catalog.outerwear);
-            updateTa('st-interact-wardrobe-costumes', catalog.costume);
-        } catch (e) {
-            status.textContent = '❌';
-            console.error(e);
+        <style>
+        .st-wardrobe-section {
+            border: 1px solid var(--SmartThemeBorderColor, #444);
+            border-radius: 6px;
+            padding: 8px 10px;
         }
-    });
-})();
-</script>
+        .st-section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 2px;
+            font-weight: 600;
+            font-size: 0.85em;
+        }
+        .st-help-btn {
+            padding: 0 7px !important;
+            font-size: 0.8em !important;
+            opacity: 0.55;
+            min-width: 22px;
+            line-height: 1.6;
+            flex: 0 0 auto;
+        }
+        .st-help-btn:hover { opacity: 1; }
+        </style>
+
+    </div><!-- /.inline-drawer-content -->
+</div><!-- /.inline-drawer -->
