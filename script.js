@@ -3,9 +3,8 @@
  * Overlay appended directly to <body> (same as #expression-wrapper in ST),
  * click zone only covers the canvas, wardrobe exposed globally and via UI.
  */
-import { wardrobeAI } from './wardrobe-ai.js';
-import { AssetScanner } from './asset-scanner.js';
-import { ZoneHighlighter } from './highlight.js';
+// wardrobe-ai.js загружается через index.js отдельно и сам находит stInteractive
+// через window.stInteractive — статический импорт здесь не нужен.
 class InteractiveMapManager {
     constructor() {
         this.CANVAS_W = 832;
@@ -389,11 +388,8 @@ class InteractiveMapManager {
 
 // ── Instantiate & expose global API ──────────────────────────────────────────
 
-const scriptPath = import.meta.url;
-const extDir     = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
-window.assetScanner      = new AssetScanner(stInteractive, extDir);
-window._zoneHighlighter  = new ZoneHighlighter(stInteractive);
-window.assetScanner.scan();
+const stInteractive = new InteractiveMapManager();
+window.stInteractive = stInteractive;
 
 /**
  * Global wardrobe API — call from the chat model or any script:
@@ -410,140 +406,223 @@ window.toggleClothing = name => stInteractive.toggle(name);
 window.dressAll       = ()   => stInteractive.dressAll();
 window.undressAll     = ()   => stInteractive.undressAll();
 
-// ── File picker buttons & position sliders in the settings panel ─────────────
+// ── Динамические модули (необязательные) ─────────────────────────────────────
+// Используем динамический import() чтобы отсутствие файлов не ломало основной скрипт.
+// extDir берётся из import.meta.url который доступен на уровне модуля.
+{
+    const _extDir = import.meta.url.substring(0, import.meta.url.lastIndexOf('/'));
+    import('./asset-scanner.js')
+        .then(({ AssetScanner }) => {
+            window.assetScanner = new AssetScanner(stInteractive, _extDir);
+            window.assetScanner.scan();
+        })
+        .catch(e => console.warn('[ST Interactive] asset-scanner.js не подключён:', e.message));
 
-(function setupFilePickers() {
+    import('./highlight.js')
+        .then(({ ZoneHighlighter }) => {
+            window._zoneHighlighter = new ZoneHighlighter(stInteractive);
+        })
+        .catch(e => console.warn('[ST Interactive] highlight.js не подключён:', e.message));
+}
+
+// ── Settings panel: sliders, file pickers, wardrobe sections, debug ──────────
+
+(function setupSettingsPanel() {
     const poll = setInterval(() => {
-        const btn = document.getElementById('st-interact-pick-base');
-        if (!btn) return;
+        // Ждём появления любого элемента настроек
+        if (!document.getElementById('st-interact-pick-base') &&
+            !document.getElementById('st-interact-scale')) return;
         clearInterval(poll);
 
-        // ── Position sliders (X / Y) ─────────────────────────────────────────
-        /** Move the puppet element to reflect current posX / posY values */
+        // ── Позиционирование манекена ─────────────────────────────────────────
         const applyPosition = () => {
             const puppet = document.getElementById('st-interactive-puppet');
             const wrap   = document.getElementById('st-puppet-wrap');
             if (!puppet || !wrap) return;
-
             const topBar   = document.getElementById('top-bar') || document.getElementById('top-settings-holder');
             const sendForm = document.getElementById('send_form');
-            const topH     = topBar   ? topBar.offsetHeight   : 50;
-            const bottomH  = sendForm ? sendForm.offsetHeight  : 80;
+            const topH     = topBar   ? topBar.offsetHeight  : 50;
+            const bottomH  = sendForm ? sendForm.offsetHeight : 80;
             const availH   = window.innerHeight - topH - bottomH;
-            const charH    = wrap.offsetHeight;
-            const charW    = wrap.offsetWidth;
-
-            const posX = stInteractive.posX;
-            const posY = stInteractive.posY;
-
-            const leftPx   = Math.round((window.innerWidth - charW) * (posX / 100));
-            const bottomPx = bottomH + Math.round((availH - charH) * (posY / 100));
-
+            const leftPx   = Math.round((window.innerWidth  - wrap.offsetWidth)  * (stInteractive.posX / 100));
+            const bottomPx = bottomH + Math.round((availH - wrap.offsetHeight) * (stInteractive.posY / 100));
             puppet.style.left   = `${leftPx}px`;
             puppet.style.bottom = `${bottomPx}px`;
         };
 
-        /** Wire a range slider to persist its value and reposition puppet */
+        const persist = (key, val) => {
+            const ctx = window.SillyTavern.getContext();
+            const s   = ctx.extensionSettings['st-interact-chat'] || {};
+            s[key]    = val;
+            ctx.extensionSettings['st-interact-chat'] = s;
+            if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+        };
+
+        // ── Слайдеры X / Y ───────────────────────────────────────────────────
         const wireSlider = (sliderId, axis, labelId) => {
             const slider = document.getElementById(sliderId);
             const label  = document.getElementById(labelId);
             if (!slider) return;
-
-            // Restore saved value
-            const context  = window.SillyTavern.getContext();
-            const settings = context.extensionSettings['st-interact-chat'] || {};
-            const saved    = Number(settings[axis] ?? (axis === 'posX' ? 0 : 0));
-            slider.value   = saved;
+            const ctx     = window.SillyTavern.getContext();
+            const saved   = Number(ctx.extensionSettings['st-interact-chat']?.[axis] ?? 0);
+            slider.value  = saved;
             stInteractive[axis] = saved;
             if (label) label.textContent = `${Math.round(saved)}%`;
-
             slider.addEventListener('input', e => {
                 const val = Number(e.target.value);
                 stInteractive[axis] = val;
                 if (label) label.textContent = `${Math.round(val)}%`;
                 applyPosition();
-
-                // Persist
-                const ctx  = window.SillyTavern.getContext();
-                const s    = ctx.extensionSettings['st-interact-chat'] || {};
-                s[axis]    = val;
-                ctx.extensionSettings['st-interact-chat'] = s;
-                if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+                persist(axis, val);
             });
         };
-
         wireSlider('st-interact-pos-x', 'posX', 'st-interact-pos-x-val');
         wireSlider('st-interact-pos-y', 'posY', 'st-interact-pos-y-val');
 
-        // ── Scale slider ─────────────────────────────────────────────────────
+        // ── Слайдер масштаба ─────────────────────────────────────────────────
         const scaleSlider = document.getElementById('st-interact-scale');
         const scaleLabel  = document.getElementById('st-interact-scale-val');
         if (scaleSlider) {
-            const context  = window.SillyTavern.getContext();
-            const settings = context.extensionSettings['st-interact-chat'] || {};
-            const savedScale = Math.round((Number(settings.scale) || 0.45) * 100);
+            const ctx        = window.SillyTavern.getContext();
+            const savedScale = Math.round((Number(ctx.extensionSettings['st-interact-chat']?.scale) || 0.45) * 100);
             scaleSlider.value = savedScale;
             if (scaleLabel) scaleLabel.textContent = `${savedScale}%`;
-
             scaleSlider.addEventListener('input', e => {
                 const pct  = Number(e.target.value);
                 const frac = pct / 100;
                 if (scaleLabel) scaleLabel.textContent = `${pct}%`;
-
-                // Resize the puppet live
                 const wrap     = document.getElementById('st-puppet-wrap');
                 const topBar   = document.getElementById('top-bar') || document.getElementById('top-settings-holder');
                 const sendForm = document.getElementById('send_form');
-                const topH     = topBar   ? topBar.offsetHeight   : 50;
-                const bottomH  = sendForm ? sendForm.offsetHeight  : 80;
-                const availH   = window.innerHeight - topH - bottomH;
+                const availH   = window.innerHeight
+                    - (topBar   ? topBar.offsetHeight   : 50)
+                    - (sendForm ? sendForm.offsetHeight  : 80);
                 if (wrap) {
                     const newH = Math.round(availH * frac);
-                    const newW = Math.round(newH * (stInteractive.CANVAS_W / stInteractive.CANVAS_H));
                     wrap.style.height = `${newH}px`;
-                    wrap.style.width  = `${newW}px`;
+                    wrap.style.width  = `${Math.round(newH * (stInteractive.CANVAS_W / stInteractive.CANVAS_H))}px`;
                     stInteractive.scale = frac;
                     applyPosition();
                 }
-
-                const ctx  = window.SillyTavern.getContext();
-                const s    = ctx.extensionSettings['st-interact-chat'] || {};
-                s.scale    = frac;
-                ctx.extensionSettings['st-interact-chat'] = s;
-                if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+                persist('scale', frac);
             });
         }
 
-        const link = (btnId, fileId, inputId) => {
+        // ── Выбор файла базы и карты зон ─────────────────────────────────────
+        const linkSingle = (btnId, fileId, inputId) => {
             const b = document.getElementById(btnId);
             const f = document.getElementById(fileId);
             const i = document.getElementById(inputId);
             if (!b || !f || !i) return;
             b.addEventListener('click', () => f.click());
-            f.addEventListener('change', e => {
-                const file = e.target.files[0];
+            f.addEventListener('change', ev => {
+                const file = ev.target.files[0];
                 if (file) {
                     i.value = file.name;
                     i.dispatchEvent(new Event('input', { bubbles: true }));
                 }
             });
         };
+        linkSingle('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
+        linkSingle('st-interact-pick-map',  'st-interact-file-map',  'st-interact-map-path');
 
-        link('st-interact-pick-base', 'st-interact-file-base', 'st-interact-base-path');
-        link('st-interact-pick-map',  'st-interact-file-map',  'st-interact-map-path');
+        // ── Выбор файлов для секций гардероба (мульти) ───────────────────────
+        const linkMulti = (btnId, fileId, textareaId, settingsKey) => {
+            const b  = document.getElementById(btnId);
+            const f  = document.getElementById(fileId);
+            const ta = document.getElementById(textareaId);
+            if (!b || !f || !ta) return;
+            b.addEventListener('click', () => f.click());
+            f.addEventListener('change', ev => {
+                const newItems = Array.from(ev.target.files)
+                    .map(file => `${file.name.replace(/\.[^.]+$/, '')}:${file.name}`)
+                    .join(', ');
+                ta.value = ta.value ? `${ta.value}, ${newItems}` : newItems;
+                ta.dispatchEvent(new Event('input', { bubbles: true }));
+                persist(settingsKey, ta.value);
+            });
+            // Сохранение при ручном вводе
+            ta.addEventListener('input', () => persist(settingsKey, ta.value));
+        };
+        linkMulti('st-interact-pick-underwear', 'st-interact-file-underwear', 'st-interact-wardrobe-underwear', 'wardrobeUnderwear');
+        linkMulti('st-interact-pick-outerwear', 'st-interact-file-outerwear', 'st-interact-wardrobe-outerwear', 'wardrobeOuterwear');
+        linkMulti('st-interact-pick-costumes',  'st-interact-file-costumes',  'st-interact-wardrobe-costumes',  'wardrobeCostumes');
 
-        const bW = document.getElementById('st-interact-pick-wardrobe');
-        const fW = document.getElementById('st-interact-file-wardrobe');
-        const aW = document.getElementById('st-interact-wardrobe-cfg');
-        if (!bW || !fW || !aW) return;
-
-        bW.addEventListener('click', () => fW.click());
-        fW.addEventListener('change', e => {
-            const newItems = Array.from(e.target.files)
-                .map(f => `${f.name.replace(/\.[^.]+$/, '')}:${f.name}`)
-                .join(', ');
-            aW.value = aW.value ? `${aW.value}, ${newItems}` : newItems;
-            aW.dispatchEvent(new Event('input', { bubbles: true }));
+        // Восстанавливаем сохранённые значения textarea
+        const ctx = window.SillyTavern.getContext();
+        const s   = ctx.extensionSettings['st-interact-chat'] || {};
+        ['wardrobeUnderwear', 'wardrobeOuterwear', 'wardrobeCostumes'].forEach((key, i) => {
+            const ids = ['st-interact-wardrobe-underwear', 'st-interact-wardrobe-outerwear', 'st-interact-wardrobe-costumes'];
+            const ta  = document.getElementById(ids[i]);
+            if (ta && s[key]) ta.value = s[key];
         });
+
+        // ── Кнопки "?" — подсказки по именованию ─────────────────────────────
+        const HELP_TEXTS = {
+            'st-help-underwear': 'Файлы для категории «Бельё» (underwear):\n\n✅ bra.png\n✅ panties.png\n✅ thong.png\n✅ stockings.png\n✅ socks.png\n✅ lingerie.png\n\nАвтоопределение: имя файла содержит bra / panties / thong / stockings / socks / lingerie.\n\nБельё никогда не снимается автоматически при смене одежды.',
+            'st-help-outerwear': 'Файлы для категории «Верхняя одежда» (outerwear):\n\n✅ shirt.png\n✅ shorts.png\n✅ pants.png\n✅ skirt.png\n✅ jacket.png\n✅ blouse.png\n\nВсё что не бельё и не костюм — попадает сюда.\n\nПри надевании верхней одежды активный костюм снимается автоматически.',
+            'st-help-costumes':  'Файлы для категории «Костюмы» (costumes):\n\n✅ maid_costume.png\n✅ nurse_costume.png\n✅ school_uniform.png\n✅ bunny_suit.png\n✅ swimsuit_outfit.png\n\nАвтоопределение суффиксов: _costume, _outfit, _uniform, _suit\n\nПри надевании костюма ВСЯ верхняя одежда скрывается автоматически.\nАИ получает команду [wear:maid_costume].',
+        };
+        Object.entries(HELP_TEXTS).forEach(([id, text]) => {
+            document.getElementById(id)?.addEventListener('click', () => alert(text));
+        });
+
+        // ── Кнопка автосканирования ───────────────────────────────────────────
+        document.getElementById('st-interact-scan-assets')?.addEventListener('click', async () => {
+            const status = document.getElementById('st-wardrobe-scan-status');
+            if (status) status.textContent = '⏳ Сканирование...';
+            if (!window.assetScanner) {
+                alert('AssetScanner не загружен. Проверьте asset-scanner.js.');
+                if (status) status.textContent = '❌ Ошибка';
+                return;
+            }
+            try {
+                const catalog = await window.assetScanner.scan();
+                const total   = catalog.underwear.length + catalog.outerwear.length + catalog.costume.length;
+                if (status) status.textContent = `✅ Найдено: ${total}`;
+                const fill = (taId, items) => {
+                    const ta = document.getElementById(taId);
+                    if (!ta || !items.length) return;
+                    const existing = new Set(ta.value.split(',').map(s => s.trim().split(':')[0].trim()).filter(Boolean));
+                    const newEntries = items.filter(i => !existing.has(i.name)).map(i => `${i.name}:${i.file}`);
+                    if (newEntries.length) {
+                        ta.value = ta.value ? `${ta.value}, ${newEntries.join(', ')}` : newEntries.join(', ');
+                        ta.dispatchEvent(new Event('input', { bubbles: true }));
+                    }
+                };
+                fill('st-interact-wardrobe-underwear', catalog.underwear);
+                fill('st-interact-wardrobe-outerwear', catalog.outerwear);
+                fill('st-interact-wardrobe-costumes',  catalog.costume);
+            } catch (e) {
+                console.error('[Settings] Ошибка сканирования:', e);
+                if (status) status.textContent = '❌ Ошибка';
+            }
+        });
+
+        // ── Стиль подсветки ───────────────────────────────────────────────────
+        const hlSelect = document.getElementById('st-interact-highlight-style');
+        if (hlSelect) {
+            hlSelect.addEventListener('change', e => {
+                const val = e.target.value;
+                if (val === 'none') {
+                    window._zoneHighlighter?.destroy?.();
+                    window._zoneHighlighter = null;
+                } else if (window._zoneHighlighter) {
+                    window._zoneHighlighter.setStyle(val);
+                } else {
+                    // Подсветка была выключена — создаём заново
+                    import('./highlight.js')
+                        .then(({ ZoneHighlighter }) => {
+                            window._zoneHighlighter = new ZoneHighlighter(stInteractive, { style: val });
+                        })
+                        .catch(() => {});
+                }
+                persist('highlightStyle', val);
+            });
+            // Восстановить сохранённый стиль
+            const savedStyle = s['highlightStyle'];
+            if (savedStyle) hlSelect.value = savedStyle;
+        }
+
     }, 500);
 })();
