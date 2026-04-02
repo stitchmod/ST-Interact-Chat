@@ -266,7 +266,7 @@ function createWardrobeButton(item) {
     btn.textContent   = LABELS[item.name] ?? capitalize(item.name);
     btn.style.opacity = item.visible ? '1' : '0.35';
     btn.title         = item.visible ? 'Снять' : 'Надеть';
-    btn.addEventListener('click', () => smartToggle(item.name) || syncWardrobeButtons());
+    btn.addEventListener('click', () => { smartToggle(item.name); syncWardrobeButtons(); });
 
     row.appendChild(btn);
     return btn;
@@ -305,9 +305,15 @@ function injectWardrobePanel() {
     const poll = setInterval(() => {
         if (document.getElementById('st-wardrobe-panel')) { clearInterval(poll); return; }
 
+        // SillyTavern меню расширений (волшебная палочка) — перебираем известные селекторы
         const extMenu = document.getElementById('extensionsMenu')
                      || document.getElementById('extensions_menu')
-                     || document.querySelector('.extensions-menu');
+                     || document.getElementById('extensionMenu')
+                     // Новые версии ST: меню внутри панели extensions
+                     || document.querySelector('#extensionsMenuList')
+                     || document.querySelector('.extensions_block')
+                     || document.querySelector('[id*="extension"][id*="menu" i]')
+                     || document.querySelector('[id*="extension"][id*="list" i]');
         if (!extMenu) return;
         clearInterval(poll);
 
@@ -364,25 +370,67 @@ function wrapGlobalAPI() {
 // ── Инъекция состояния в промпт ───────────────────────────────────────────────
 
 function injectStateIntoPrompt(promptData) {
+    if (!promptData) return;
     const block = buildStateBlock();
 
-    if (Array.isArray(promptData?.prompts)) {
+    // Формат 1: Chat Completion — массив prompts (OpenAI-style)
+    if (Array.isArray(promptData.prompts)) {
         const sys = promptData.prompts.find(p => p.role === 'system');
-        if (sys) { sys.content += '\n\n' + block; return; }
-        promptData.prompts.unshift({ role: 'system', content: block });
+        if (sys) {
+            // content может быть строкой или массивом [{type:'text', text:'...'}]
+            if (typeof sys.content === 'string') {
+                sys.content += '\n\n' + block;
+            } else if (Array.isArray(sys.content)) {
+                const textPart = sys.content.find(p => p.type === 'text');
+                if (textPart) textPart.text += '\n\n' + block;
+                else sys.content.push({ type: 'text', text: block });
+            }
+        } else {
+            promptData.prompts.unshift({ role: 'system', content: block });
+        }
         return;
     }
-    if (typeof promptData?.systemPrompt === 'string') {
-        promptData.systemPrompt += '\n\n' + block;
-        return;
+
+    // Формат 2: chat_completion с полем messages (некоторые версии ST)
+    if (Array.isArray(promptData.messages)) {
+        const sys = promptData.messages.find(p => p.role === 'system');
+        if (sys && typeof sys.content === 'string') {
+            sys.content += '\n\n' + block;
+            return;
+        }
     }
-    for (const key of ['system', 'prompt', 'instruction']) {
-        if (typeof promptData?.[key] === 'string') {
+
+    // Формат 3: textgenerationwebui / KoboldAI — строковые поля
+    for (const key of ['systemPrompt', 'system', 'prompt', 'instruction']) {
+        if (typeof promptData[key] === 'string') {
             promptData[key] += '\n\n' + block;
             return;
         }
     }
-    console.warn('[WardrobeAI] Не удалось найти поле для инъекции:', Object.keys(promptData ?? {}));
+
+    console.warn('[WardrobeAI] Не удалось найти поле для инъекции. Ключи:', Object.keys(promptData));
+}
+
+// ── Вспомогательная: зачистка тегов из DOM без пересборки innerHTML ───────────
+
+/**
+ * Проходит по текстовым узлам элемента и удаляет вхождения CMD_PATTERN.
+ * Это безопаснее чем el.innerHTML = cleaned, т.к. не уничтожает слушателей
+ * и не дёргает ST-рендер повторно.
+ */
+function _stripTagsFromDom(el) {
+    // Паттерн без флага g/i чтобы использовать через replace на каждом узле
+    const pat = /\[(wear|remove|toggle|dressAll|undressAll)(?::[^\]]+)?\]/gi;
+    const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT, null);
+    const nodes = [];
+    let node;
+    while ((node = walker.nextNode())) nodes.push(node);
+    for (const n of nodes) {
+        if (pat.test(n.nodeValue)) {
+            pat.lastIndex = 0; // сбрасываем после test()
+            n.nodeValue = n.nodeValue.replace(pat, '').replace(/[ \t]{2,}/g, ' ').trim();
+        }
+    }
 }
 
 // ── Основной класс ────────────────────────────────────────────────────────────
@@ -406,6 +454,9 @@ class WardrobeAI {
     }
 
     _hookEvents({ eventSource, event_types }) {
+        // ── Инъекция состояния гардероба в промпт ─────────────────────────────
+        // ST может использовать разные события в зависимости от версии.
+        // Пробуем все известные, останавливаемся на первом найденном.
         const PRE_EVENTS = [
             'GENERATE_BEFORE_COMBINE_PROMPTS',
             'CHAT_COMPLETION_PROMPT_READY',
@@ -415,34 +466,63 @@ class WardrobeAI {
         for (const evName of PRE_EVENTS) {
             const ev = event_types[evName];
             if (ev) {
-                eventSource.on(ev, (data) => injectStateIntoPrompt(data));
+                eventSource.on(ev, (data) => {
+                    try { injectStateIntoPrompt(data); }
+                    catch (e) { console.warn('[WardrobeAI] Ошибка инъекции:', e); }
+                });
                 console.log(`[WardrobeAI] Хук инъекции: ${evName}`);
                 injectionHooked = true;
+                break; // достаточно одного события
             }
         }
         if (!injectionHooked) {
             console.warn('[WardrobeAI] Нет событий инъекции. Доступные:', Object.keys(event_types));
         }
 
+        // Основной хук: перехватываем сообщение ДО записи в чат и ДО рендера.
+        // MESSAGE_RECEIVED в ST передаёт объект сообщения напрямую — мутация data.mes работает.
         if (event_types.MESSAGE_RECEIVED) {
             eventSource.on(event_types.MESSAGE_RECEIVED, (data) => {
-                if (data?.mes) data.mes = processResponse(data.mes);
+                if (typeof data?.mes === 'string') {
+                    data.mes = processResponse(data.mes);
+                }
             });
             console.log('[WardrobeAI] Хук парсинга: MESSAGE_RECEIVED');
         }
 
+        // Резервный хук: убираем теги из уже отрендеренных сообщений (на случай
+        // если MESSAGE_RECEIVED не дал мутировать mes, или сообщение пришло через стриминг).
         if (event_types.CHARACTER_MESSAGE_RENDERED) {
             eventSource.on(event_types.CHARACTER_MESSAGE_RENDERED, (msgId) => {
-                const chat = window.SillyTavern.getContext().chat;
+                const ctx  = window.SillyTavern.getContext();
+                const chat = ctx?.chat;
                 const msg  = chat?.[msgId];
                 if (!msg || msg.is_user) return;
+
+                // Выполняем команды и чистим текст в модели чата
                 const cleaned = processResponse(msg.mes);
-                if (cleaned === msg.mes) return;
-                msg.mes = cleaned;
+                if (cleaned !== msg.mes) {
+                    msg.mes = cleaned;
+                    if (typeof ctx.saveSettingsDebounced === 'function') ctx.saveSettingsDebounced();
+                }
+
+                // Всегда чистим DOM — убираем теги которые могли просочиться в рендер
                 const el = document.querySelector(`[mesid="${msgId}"] .mes_text`);
-                if (el) el.innerHTML = cleaned;
+                if (el) {
+                    // Удаляем теги из текстовых узлов без пересборки всего innerHTML
+                    _stripTagsFromDom(el);
+                }
             });
             console.log('[WardrobeAI] Хук зачистки: CHARACTER_MESSAGE_RENDERED');
+        }
+
+        // Стриминг: убираем теги прямо во время потока, до финального рендера
+        if (event_types.STREAM_TOKEN_RECEIVED) {
+            eventSource.on(event_types.STREAM_TOKEN_RECEIVED, (data) => {
+                if (typeof data?.text === 'string') {
+                    data.text = data.text.replace(CMD_PATTERN, '');
+                }
+            });
         }
 
         this._hooked = true;
