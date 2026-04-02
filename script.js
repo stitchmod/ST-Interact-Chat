@@ -4,6 +4,7 @@
  * click zone only covers the canvas, wardrobe exposed globally and via UI.
  */
 import { wardrobeAI } from './wardrobe-ai.js';
+import { AssetScanner } from './asset-scanner.js';
 import { ZoneHighlighter } from './highlight.js';
 class InteractiveMapManager {
     constructor() {
@@ -388,9 +389,11 @@ class InteractiveMapManager {
 
 // ── Instantiate & expose global API ──────────────────────────────────────────
 
-const stInteractive = new InteractiveMapManager();
-window.stInteractive = stInteractive;
-window._zoneHighlighter = new ZoneHighlighter(stInteractive);
+const scriptPath = import.meta.url;
+const extDir     = scriptPath.substring(0, scriptPath.lastIndexOf('/'));
+window.assetScanner      = new AssetScanner(stInteractive, extDir);
+window._zoneHighlighter  = new ZoneHighlighter(stInteractive);
+window.assetScanner.scan();
 
 /**
  * Global wardrobe API — call from the chat model or any script:
